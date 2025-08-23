@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}{% block title %}Home - Smart Recipe{% endblock %}
+{% block content %}
+<div class="p-5 bg-white rounded-3 shadow-sm">
+  <h1 class="display-6 mb-3">From fridge → recipe in seconds</h1>
+  <p class="text-muted">Save your ingredients, get recipe ideas, and plan your week.</p>
+  <a class="btn btn-primary me-2" href="{% url 'register' %}">Get started free</a>
+  <a class="btn btn-outline-secondary" href="{% url 'login' %}">I already have an account</a>
+</div>
+{% endblock %}
