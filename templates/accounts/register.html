@@ -1,10 +1,68 @@
-{% extends "core/base.html" %}{% block title %}Register - Smart Recipe{% endblock %}
+{% extends "core/base.html" %}
+{% block title %}Register - Smart Recipe{% endblock %}
 {% block content %}
-<div class="row justify-content-center"><div class="col-md-6">
-  <div class="card shadow-sm"><div class="card-body">
-    <h5 class="card-title mb-3">Create your account</h5>
-    <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary">Register</button></form>
-    <hr><p class="small">Already have an account? <a href="{% url 'login' %}">Login</a></p>
-  </div></div>
-</div></div>
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Create your account</h5>
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3">
+            {{ form.username.label_tag }}
+            {{ form.username }}
+            {% if form.username.errors %}
+              <div class="text-danger small">{{ form.username.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.password1.label_tag }}
+            <div class="input-group">
+              {{ form.password1 }}
+              <button type="button"
+                      class="btn btn-outline-secondary toggle-password"
+                      data-target="id_password1"
+                      aria-label="Show or hide password">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+            {% if form.password1.errors %}
+              <div class="text-danger small">{{ form.password1.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.password2.label_tag }}
+            <div class="input-group">
+              {{ form.password2 }}
+              <button type="button"
+                      class="btn btn-outline-secondary toggle-password"
+                      data-target="id_password2"
+                      aria-label="Show or hide password confirmation">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+            {% if form.password2.errors %}
+              <div class="text-danger small">{{ form.password2.errors }}</div>
+            {% endif %}
+          </div>
+
+          <button class="btn btn-primary w-100">Register</button>
+        </form>
+
+        <hr>
+        <p class="small mb-0">
+          Already have an account? <a href="{% url 'login' %}">Login</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

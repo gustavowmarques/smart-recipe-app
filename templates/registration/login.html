@@ -1,14 +1,52 @@
-{% extends "core/base.html" %}{% block title %}Login - Smart Recipe{% endblock %}
+{% extends "core/base.html" %}
+{% block title %}Login - Smart Recipe{% endblock %}
 {% block content %}
-<div class="row justify-content-center"><div class="col-md-6">
-  <div class="card shadow-sm"><div class="card-body">
-    <h5 class="card-title mb-3">Login</h5>
-    <form method="post">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <button class="btn btn-primary">Login</button>
-    </form>
-  </div></div>
-  <p class="small mt-2">No account? <a href="{% url 'register' %}">Register</a></p>
-</div></div>
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Login</h5>
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3">
+            {{ form.username.label_tag }}
+            {{ form.username }}
+            {% if form.username.errors %}
+              <div class="text-danger small">{{ form.username.errors }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.password.label_tag }}
+            <div class="input-group">
+              {{ form.password }}
+              <button type="button"
+                      class="btn btn-outline-secondary toggle-password"
+                      data-target="id_password"
+                      aria-label="Show or hide password">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+            {% if form.password.errors %}
+              <div class="text-danger small">{{ form.password.errors }}</div>
+            {% endif %}
+          </div>
+
+          <button class="btn btn-primary w-100">Login</button>
+        </form>
+
+        <hr>
+        <p class="small mb-0">
+          No account? <a href="{% url 'register' %}">Register</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
