@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}AI Recipes{% endblock %}
+{% block content %}
+<h4>AI Recipe Suggestions</h4>
+<p class="text-muted">Based on your pantry: {{ pantry|join:", " }}</p>
+
+<div class="row">
+  {% for r in recipes %}
+  <div class="col-md-6">
+    <div class="card mb-3 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">{{ r.title }}</h5>
+        {% if r.tags %}<p class="small text-muted">{{ r.tags|join:", " }}</p>{% endif %}
+        {% if r.cook_time_minutes %}<p><strong>Time:</strong> {{ r.cook_time_minutes }} min</p>{% endif %}
+        <h6>Ingredients</h6>
+        <ul class="mb-2">{% for i in r.ingredients %}<li>{{ i }}</li>{% endfor %}</ul>
+        <h6>Steps</h6>
+        <ol class="mb-0">{% for s in r.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Back to Dashboard</a>
+{% endblock %}

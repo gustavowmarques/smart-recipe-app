@@ -1,7 +1,41 @@
-{% extends "core/base.html" %}{% block title %}Dashboard - Smart Recipe{% endblock %}
+{% extends "core/base.html" %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="card shadow-sm"><div class="card-body">
-  <h5 class="card-title mb-2">Welcome, {{ user.username }} 👋</h5>
-  <p class="text-muted mb-0">Week 2 demo dashboard. Pantry, recipes, and planner coming next.</p>
-</div></div>
+<h4 class="mb-3">Your Pantry</h4>
+<form class="row g-2" method="post" action="{% url 'add_ingredient' %}">
+  {% csrf_token %}
+  <div class="col-md-4">{{ form.name }}</div>
+  <div class="col-md-3">{{ form.quantity }}</div>
+  <div class="col-md-3">{{ form.unit }}</div>
+  <div class="col-md-2"><button class="btn btn-primary w-100">Add</button></div>
+</form>
+
+<table class="table table-sm table-striped mt-3">
+  <thead><tr><th>Name</th><th>Qty</th><th>Unit</th><th></th></tr></thead>
+  <tbody>
+    {% for ing in ingredients %}
+      <tr>
+        <td>{{ ing.name }}</td>
+        <td>{{ ing.quantity }}</td>
+        <td>{{ ing.unit }}</td>
+        <td class="text-end">
+          <form method="post" action="{% url 'delete_ingredient' ing.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="text-muted">No ingredients yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="d-flex gap-2">
+  <form method="post" action="{% url 'ai_recipes' %}">
+    {% csrf_token %}
+    <button class="btn btn-success">Get AI Recipes</button>
+  </form>
+  <!-- Space for “Search the Web” (Edamam) later -->
+</div>
 {% endblock %}
