@@ -7,4 +7,5 @@ urlpatterns = [
     path("pantry/add/", views.add_ingredient, name="add_ingredient"),
     path("pantry/<int:pk>/delete/", views.delete_ingredient, name="delete_ingredient"),
     path("ai/recipes/", views.ai_recipes, name="ai_recipes"),
+    path("web/recipes/", views.web_recipes, name="web_recipes"),
 ]

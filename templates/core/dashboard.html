@@ -36,6 +36,11 @@
     {% csrf_token %}
     <button class="btn btn-success">Get AI Recipes</button>
   </form>
+  <form method="post" action="{% url 'web_recipes' %}" class="d-inline">
+    {% csrf_token %}
+    <button class="btn btn-outline-primary">Search the Web</button>
+  </form>
+
   <!-- Space for “Search the Web” (Edamam) later -->
 </div>
 {% endblock %}
