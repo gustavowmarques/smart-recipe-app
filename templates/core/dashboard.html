@@ -32,14 +32,19 @@
 </table>
 
 <div class="d-flex gap-2">
-  <form method="post" action="{% url 'ai_recipes' %}">
+  <form method="post" class="d-flex gap-2 align-items-center mt-3">
     {% csrf_token %}
-    <button class="btn btn-success">Get AI Recipes</button>
+    <label class="me-2 fw-semibold">Recipe type:</label>
+    <select name="kind" class="form-select w-auto">
+      <option value="food" selected>Food</option>
+      <option value="drink">Drink</option>
+    </select>
+
+    <!-- These two buttons POST the same form to different endpoints -->
+    <button class="btn btn-success" formaction="{% url 'ai_recipes' %}">Get AI Recipes</button>
+    <button class="btn btn-outline-primary" formaction="{% url 'web_recipes' %}">Search the Web</button>
   </form>
-  <form method="post" action="{% url 'web_recipes' %}" class="d-inline">
-    {% csrf_token %}
-    <button class="btn btn-outline-primary">Search the Web</button>
-  </form>
+
 
   <!-- Space for “Search the Web” (Edamam) later -->
 </div>

@@ -4,8 +4,13 @@ from . import views
 urlpatterns = [
     path("", views.home, name="home"),
     path("dashboard/", views.dashboard, name="dashboard"),
+
+    # Pantry
     path("pantry/add/", views.add_ingredient, name="add_ingredient"),
     path("pantry/<int:pk>/delete/", views.delete_ingredient, name="delete_ingredient"),
+
+    # AI + Web recipes
     path("ai/recipes/", views.ai_recipes, name="ai_recipes"),
+    path("ai/recipes/<int:recipe_id>/", views.recipe_detail, name="recipe_detail"),
     path("web/recipes/", views.web_recipes, name="web_recipes"),
 ]

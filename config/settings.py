@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # BASE & ENV
 # ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")  # safe locally; Render uses real env vars
+load_dotenv()  # loads .env from project root
 
 # ---------------------------------------------------------------------
 # SECURITY
@@ -55,6 +55,7 @@ INSTALLED_APPS = [
 
     # local
     "core",
+    "accounts", 
 ]
 
 # ---------------------------------------------------------------------
@@ -143,8 +144,6 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
 # ---------------------------------------------------------------------
 # LOGGING (show errors in Render logs)
 # ---------------------------------------------------------------------
@@ -158,3 +157,18 @@ LOGGING = {
         "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
     },
 }
+
+# ---------------------------------------------------------------------
+# Authentication redirects
+# ---------------------------------------------------------------------
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "dashboard"
+LOGOUT_REDIRECT_URL = "home"
+
+# ---------------------------------------------------------------------
+# Default primary key field type
+# ---------------------------------------------------------------------
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+ENABLE_AI_IMAGES = os.getenv("ENABLE_AI_IMAGES", "false").lower() in ("1", "true", "yes")
+
