@@ -50,6 +50,37 @@ DRINK_TYPES = {"drink", "beverage", "beverages", "cocktail", "smoothie"}
 # Helpers
 # ------------------------------------------------------------------------------
 
+def _fallback_image_from_spoonacular(title: str) -> str | None:
+    """
+    Try to find a representative image for an AI recipe by searching Spoonacular by title.
+    Returns an image URL or None.
+    """
+    api_key = os.getenv("SPOONACULAR_API_KEY")
+    if not api_key or not title:
+        return None
+    try:
+        r = requests.get(
+            "https://api.spoonacular.com/recipes/complexSearch",
+            params={
+                "apiKey": api_key,
+                "query": title,
+                "number": 1,
+                "addRecipeInformation": True,  # ensures 'image' is present
+            },
+            timeout=12,
+        )
+        if r.status_code != 200:
+            logger.warning("Spoonacular fallback image %s: %s", r.status_code, r.text[:200])
+            return None
+        items = (r.json() or {}).get("results") or []
+        if not items:
+            return None
+        return items[0].get("image")
+    except requests.RequestException:
+        logger.exception("Spoonacular fallback image request failed")
+        return None
+
+
 def slugify(title: str) -> str:
     """URL-friendly slug for fall-back recipe links (e.g., spoonacular.com/recipes/<slug>-<id>)."""
     s = (title or "").strip().lower()
@@ -178,6 +209,7 @@ def delete_ingredient(request, pk: int):
 
 # ------------------------------------------------------------------------------
 # AI Recipes (OpenAI) – returns 4 JSON recipes; optional AI images per recipe
+# with a Spoonacular image fallback when AI images are disabled or blocked.
 # ------------------------------------------------------------------------------
 
 @login_required
@@ -239,6 +271,33 @@ def ai_recipes(request):
             logger.exception("Unexpected error parsing image response")
             return None
 
+    # Fallback – try to fetch a representative image from Spoonacular by title
+    def _fallback_image_from_spoonacular(title: str) -> Optional[str]:
+        api_key_spoon = os.getenv("SPOONACULAR_API_KEY")
+        if not api_key_spoon or not title:
+            return None
+        try:
+            r = requests.get(
+                "https://api.spoonacular.com/recipes/complexSearch",
+                params={
+                    "apiKey": api_key_spoon,
+                    "query": title,
+                    "number": 1,
+                    "addRecipeInformation": True,  # ensures 'image' is present
+                },
+                timeout=12,
+            )
+            if r.status_code != 200:
+                logger.warning("Spoonacular fallback image %s: %s", r.status_code, r.text[:200])
+                return None
+            items = (r.json() or {}).get("results") or []
+            if not items:
+                return None
+            return items[0].get("image")
+        except requests.RequestException:
+            logger.exception("Spoonacular fallback image request failed")
+            return None
+
     # Ask the model for STRICT JSON (4 recipes).
     system_msg = (
         "You are a professional chef. Generate exactly 4 recipes based on the user's pantry. "
@@ -286,14 +345,20 @@ def ai_recipes(request):
         payload = json.loads(data["choices"][0]["message"]["content"])
         recipes = (payload.get("recipes") or [])[:4]
 
-        # Normalize + enrich + assign IDs + optional image
+        # Normalize + enrich + assign IDs + image (OpenAI first, then Spoonacular fallback)
         for idx, r in enumerate(recipes, start=1):
             r["id"] = idx  # IMPORTANT: used by recipe_detail() for lookup
             r["title"] = r.get("title") or f"Recipe {idx}"
             r["ingredients"] = r.get("ingredients") or []
             r["steps"] = r.get("steps") or []
             r["tags"] = r.get("tags") or []
+
+            # Try OpenAI image first (only if enabled)
             r["image_url"] = _gen_image_url(r["title"], kind) if settings.ENABLE_AI_IMAGES else None
+
+            # If no image (disabled or failed), try Spoonacular title search as a fallback
+            if not r["image_url"]:
+                r["image_url"] = _fallback_image_from_spoonacular(r["title"])
 
         # Store in session for detail page and saving to favorites
         request.session["ai_recipes"] = recipes
