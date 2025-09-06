@@ -575,6 +575,45 @@ def recipe_detail(request, recipe_id: int, source: str = "ai"):
 
     return render(request, "core/recipe_detail.html", {"recipe": recipe, "source": source, "already_saved": already})
 
+@login_required
+def favorite_detail(request, pk: int):
+    """
+    Render a saved recipe straight from the database, without relying on
+    session data. We build a 'recipe' dict shaped like the one used by
+    recipe_detail.html so we can reuse that template.
+    """
+    fav = get_object_or_404(SavedRecipe, pk=pk, user=request.user)
+
+    # Normalize data so recipe_detail.html can render consistently
+    ingredients = fav.ingredients_json or []
+    steps = fav.steps_json or []
+
+    # Build a dict that looks like the session-based object
+    recipe = {
+        "id": fav.external_id or fav.pk,      # not used for saving here (already saved)
+        "title": fav.title or "Recipe",
+        "image_url": fav.image_url or "",
+        "ingredients": ingredients,            # may be list[str] or list[dict] with 'original'
+        "extendedIngredients": ingredients,    # fallback path in template
+        "steps": steps if isinstance(steps, list) else [],
+        "instructions": (
+            "\n".join(steps) if isinstance(steps, list) else (steps or "")
+        ),
+        # Web-only hints (empty here; not needed but keeps template happy)
+        "usedIngredients": [],
+        "missedIngredients": [],
+        "readyInMinutes": None,
+        "servings": None,
+        # Optional: if you later store a source URL on SavedRecipe, pass it here as "url"
+        # "url": fav.source_url,
+    }
+
+    # Reuse the existing detail template; force 'already_saved' so the Save button is hidden
+    return render(
+        request,
+        "core/recipe_detail.html",
+        {"recipe": recipe, "source": fav.source, "already_saved": True},
+    )
 
 @login_required
 @require_POST
