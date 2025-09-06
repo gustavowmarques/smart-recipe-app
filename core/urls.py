@@ -11,6 +11,12 @@ urlpatterns = [
 
     # AI + Web recipes
     path("ai/recipes/", views.ai_recipes, name="ai_recipes"),
-    path("ai/recipes/<int:recipe_id>/", views.recipe_detail, name="recipe_detail"),
+    path("ai/recipes/<int:recipe_id>/", views.recipe_detail, {"source": "ai"}, name="recipe_detail_ai"),
     path("web/recipes/", views.web_recipes, name="web_recipes"),
+    path("web/recipes/<int:recipe_id>/", views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
+
+    # Favorites
+    path("<str:source>/recipes/<int:recipe_id>/save/", views.save_favorite, name="save_favorite"),
+    path("favorites/", views.favorites_list, name="favorites"),
+    path("favorites/<int:pk>/delete/", views.favorite_delete, name="favorite_delete"),
 ]

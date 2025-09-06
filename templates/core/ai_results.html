@@ -3,58 +3,74 @@
 {% block title %}AI Recipe Ideas{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">AI Recipe Ideas ({{ kind|title }})</h2>
-<p class="text-muted">Pantry: {{ pantry|join:", " }}</p>
-
-<div class="row g-4">
-  {% for r in recipes %}
-  <div class="col-12 col-md-6 col-lg-4">
-    <div class="card h-100 shadow-sm">
-
-      {% if r.image_url %}
-        <img src="{{ r.image_url }}" class="card-img-top" alt="{{ r.title }}" style="height:200px;object-fit:cover;">
-      {% else %}
-        <img src="{% static 'img/recipe_placeholder.jpg' %}" class="card-img-top" alt="No image" style="height:200px;object-fit:cover;">
-      {% endif %}
-
-      <div class="card-body d-flex flex-column">
-        <h5 class="card-title">{{ r.title }}</h5>
-
-        {% if r.tags %}
-          <div class="mb-2">
-            {% for t in r.tags %}
-              <span class="badge text-bg-light border me-1">{{ t }}</span>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        {% if r.cook_time_minutes %}
-          <div class="small text-muted mb-2">~ {{ r.cook_time_minutes }} min</div>
-        {% endif %}
-
-        {% if r.id %}
-          <a href="{% url 'recipe_detail' recipe_id=r.id %}" class="btn btn-primary mt-auto">View Recipe</a>
-        {% else %}
-          <button class="btn btn-secondary mt-auto" disabled>View Recipe</button>
-        {% endif %}
-
-        {# Optional: this collapse has no toggle now; safe to remove if unused #}
-        <div id="r{{ forloop.counter }}" class="collapse mt-3">
-          <h6>Ingredients</h6>
-          <ul class="small">
-            {% for i in r.ingredients %}<li>{{ i }}</li>{% endfor %}
-          </ul>
-
-          <h6>Steps</h6>
-          <ol class="small">
-            {% for s in r.steps %}<li>{{ s }}</li>{% endfor %}
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
+<div class="d-flex align-items-center justify-content-between mb-2">
+  <h2 class="mb-0">AI Recipe Ideas{% if kind %} ({{ kind|title }}){% endif %}</h2>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'dashboard' %}">Back to Dashboard</a>
 </div>
 
-<a class="btn btn-secondary mt-4" href="{% url 'dashboard' %}">Back</a>
+{% if pantry %}
+  <p class="text-muted">Based on your pantry: {{ pantry|join:", " }}</p>
+{% endif %}
+
+{% if recipes %}
+  <div class="row g-4">
+    {% for r in recipes %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+
+          {% if r.image_url %}
+            <img src="{{ r.image_url }}" class="card-img-top" alt="{{ r.title }}">
+          {% else %}
+            <img src="{% static 'img/recipe_placeholder.jpg' %}" class="card-img-top" alt="No image">
+          {% endif %}
+
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title mb-1">{{ r.title }}</h5>
+
+            <div class="small text-muted mb-2">
+              {% if r.cook_time_minutes %}⏱ {{ r.cook_time_minutes }} min{% endif %}
+              {% if r.steps %}{% if r.cook_time_minutes %} &nbsp;·&nbsp; {% endif %}{{ r.steps|length }} steps{% endif %}
+            </div>
+
+            {% if r.tags %}
+              <div class="mb-2">
+                {% for tag in r.tags %}
+                  <span class="badge rounded-pill text-bg-light border me-1">{{ tag }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if r.ingredients %}
+              <div class="mb-3">
+                <div class="fw-semibold mb-1 small text-uppercase text-muted">Key ingredients</div>
+                <ul class="ps-3 mb-0">
+                  {% for ing in r.ingredients|slice:":4" %}
+                    <li class="small">{{ ing }}</li>
+                  {% endfor %}
+                  {% if r.ingredients|length > 4 %}
+                    <li class="small text-muted">…and {{ r.ingredients|length|add:"-4" }} more</li>
+                  {% endif %}
+                </ul>
+              </div>
+            {% endif %}
+
+            <div class="mt-auto d-flex gap-2">
+              <!-- View inside your app -->
+              <a class="btn btn-sm btn-primary" href="{% url 'recipe_detail_ai' r.id %}">View</a>
+
+              <!-- Save to Favorites -->
+              <form method="post" action="{% url 'save_favorite' 'ai' r.id %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-success">Save</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert alert-info">No recipes returned from AI. Try again from the dashboard.</div>
+{% endif %}
 {% endblock %}

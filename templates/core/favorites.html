@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% block title %}Favorites{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Your Favorites</h2>
+
+{% if items %}
+  <div class="row g-4">
+    {% for it in items %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 shadow-sm">
+          {% if it.image_url %}
+            <img src="{{ it.image_url }}" class="card-img-top" alt="{{ it.title }}">
+          {% endif %}
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title">{{ it.title }}</h5>
+            <p class="small text-muted">{{ it.source|title }} recipe</p>
+
+            <div class="mt-auto d-flex gap-2">
+              <!-- View details (uses the source-aware detail routes) -->
+              {% if it.source == "ai" %}
+                <a class="btn btn-sm btn-primary" href="{% url 'recipe_detail_ai' it.external_id %}">
+                  View
+                </a>
+              {% elif it.source == "web" %}
+                <a class="btn btn-sm btn-primary" href="{% url 'recipe_detail_web' it.external_id %}">
+                  View
+                </a>
+              {% endif %}
+
+              <!-- Remove from favorites -->
+              <form method="post" action="{% url 'favorite_delete' it.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger">Remove</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">No favorites yet. Generate recipes and click “Save”.</p>
+{% endif %}
+{% endblock %}

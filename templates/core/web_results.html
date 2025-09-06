@@ -37,13 +37,18 @@
         </p>
         {% endif %}
 
-        <div class="mt-auto">
+        <div class="d-flex gap-2 mt-auto">
+          <a class="btn btn-sm btn-primary" href="{% url 'recipe_detail_web' r.id %}">View</a>
+          <form method="post" action="{% url 'save_favorite' 'web' r.id %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-success">Save</button>
+          </form>
           {% if r.url %}
-            <a class="btn btn-sm btn-primary w-100" href="{{ r.url }}" target="_blank" rel="noopener">Open Recipe</a>
-          {% else %}
-            <span class="badge bg-secondary">No source URL</span>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ r.url }}" target="_blank" rel="noopener">Source</a>
           {% endif %}
         </div>
+
+
       </div>
     </div>
   </div>
