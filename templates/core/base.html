@@ -20,7 +20,7 @@
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white navbar-light border-bottom sticky-top">
     <div class="container">
-      <a class="navbar-brand fw-semibold" href="{% url 'home' %}">Smart Recipe</a>
+      <a class="navbar-brand fw-semibold" href="{% url 'core:home' %}">Smart Recipe</a>
 
       <!-- Toggler button -->
       <button class="navbar-toggler" type="button"
@@ -31,25 +31,28 @@
 
       <!-- Collapsible content -->
       <div class="collapse navbar-collapse" id="mainNav">
+
+        {% with current=request.resolver_match.url_name %}
         <!-- Left nav -->
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Home</a>
+            <a class="nav-link {% if current == 'home' %}active{% endif %}" href="{% url 'core:home' %}" aria-current="{% if current == 'home' %}page{% endif %}">Home</a>
           </li>
 
           {% if user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link {% if request.path|slice:":11" == "/dashboard" %}active{% endif %}" href="{% url 'dashboard' %}">
+              <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'core:dashboard' %}" aria-current="{% if current == 'dashboard' %}page{% endif %}">
                 Dashboard
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if request.path|slice:":10" == "/favorites" %}active{% endif %}" href="{% url 'favorites' %}">
+              <a class="nav-link {% if current in 'favorites favorite_detail' %}active{% endif %}" href="{% url 'core:favorites' %}" aria-current="{% if current in 'favorites favorite_detail' %}page{% endif %}">
                 Favorites
               </a>
             </li>
           {% endif %}
         </ul>
+        {% endwith %}
 
         <!-- Right actions -->
         <div class="d-flex align-items-center gap-2">
@@ -57,13 +60,20 @@
             <span class="navbar-text d-none d-lg-inline text-muted me-1">
               Hi, {{ user.username }}
             </span>
+            <!-- Use Django auth 'logout' (not namespaced) and POST -->
             <form class="mb-0" method="post" action="{% url 'logout' %}">
               {% csrf_token %}
               <button class="btn btn-outline-danger btn-sm">Logout</button>
             </form>
           {% else %}
+            <!-- Use Django auth 'login' (not namespaced) -->
             <a class="btn btn-outline-secondary btn-sm" href="{% url 'login' %}">Login</a>
-            <a class="btn btn-primary btn-sm" href="{% url 'register' %}">Register</a>
+
+            <!-- Register link only if your accounts app provides it -->
+            {% url 'accounts:register' as register_url %}
+            {% if register_url %}
+              <a class="btn btn-primary btn-sm" href="{{ register_url }}">Register</a>
+            {% endif %}
           {% endif %}
         </div>
       </div>

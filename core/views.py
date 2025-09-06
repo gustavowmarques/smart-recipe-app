@@ -24,11 +24,12 @@ import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .forms import IngredientForm
+from .forms import IngredientForm, SavedRecipeForm
 from .models import Ingredient, SavedRecipe
 
 logger = logging.getLogger(__name__)
@@ -177,7 +178,7 @@ def dashboard(request):
     form = IngredientForm()
     return render(request, "core/dashboard.html", {"ingredients": ingredients, "form": form})
 
-
+@require_POST
 @login_required
 def add_ingredient(request):
     """Add a pantry ingredient for the current user."""
@@ -196,7 +197,7 @@ def add_ingredient(request):
             messages.error(request, "Please correct the errors.")
     return redirect("dashboard")
 
-
+@require_POST
 @login_required
 def delete_ingredient(request, pk: int):
     """Delete a pantry ingredient belonging to the current user."""
@@ -230,8 +231,6 @@ def ai_recipes(request):
         messages.error(request, "OpenAI API key not configured.")
         return redirect("dashboard")
 
-    # Helper to generate an image URL with OpenAI Images (optional).
-    # We keep it nested to avoid polluting the module with variants.
     def _gen_image_url(title: str, kind_: str) -> Optional[str]:
         try:
             prompt = (
@@ -247,20 +246,17 @@ def ai_recipes(request):
                 json={
                     "model": "gpt-image-1",
                     "prompt": prompt,
-                    # Valid sizes: "1024x1024", "1024x1536", "1536x1024", or "auto"
                     "size": "1024x1024",
                     "n": 1,
                 },
                 timeout=60,
             )
             if r.status_code == 403:
-                # Some orgs/projects may not be verified for image gen: skip silently.
                 logger.warning("OpenAI image gen blocked (403). Skipping images this run.")
                 return None
             if r.status_code != 200:
                 logger.error("OpenAI image gen %s: %s", r.status_code, r.text)
                 return None
-
             payload = r.json()
             data = payload.get("data") or []
             return data[0].get("url") if data else None
@@ -271,34 +267,6 @@ def ai_recipes(request):
             logger.exception("Unexpected error parsing image response")
             return None
 
-    # Fallback – try to fetch a representative image from Spoonacular by title
-    def _fallback_image_from_spoonacular(title: str) -> Optional[str]:
-        api_key_spoon = os.getenv("SPOONACULAR_API_KEY")
-        if not api_key_spoon or not title:
-            return None
-        try:
-            r = requests.get(
-                "https://api.spoonacular.com/recipes/complexSearch",
-                params={
-                    "apiKey": api_key_spoon,
-                    "query": title,
-                    "number": 1,
-                    "addRecipeInformation": True,  # ensures 'image' is present
-                },
-                timeout=12,
-            )
-            if r.status_code != 200:
-                logger.warning("Spoonacular fallback image %s: %s", r.status_code, r.text[:200])
-                return None
-            items = (r.json() or {}).get("results") or []
-            if not items:
-                return None
-            return items[0].get("image")
-        except requests.RequestException:
-            logger.exception("Spoonacular fallback image request failed")
-            return None
-
-    # Ask the model for STRICT JSON (4 recipes).
     system_msg = (
         "You are a professional chef. Generate exactly 4 recipes based on the user's pantry. "
         "Prefer using provided ingredients; suggest smart substitutions if needed. "
@@ -345,22 +313,20 @@ def ai_recipes(request):
         payload = json.loads(data["choices"][0]["message"]["content"])
         recipes = (payload.get("recipes") or [])[:4]
 
-        # Normalize + enrich + assign IDs + image (OpenAI first, then Spoonacular fallback)
+        # Normalize + enrich + assign IDs + images (OpenAI then Spoonacular fallback)
         for idx, r in enumerate(recipes, start=1):
-            r["id"] = idx  # IMPORTANT: used by recipe_detail() for lookup
+            r["id"] = idx
             r["title"] = r.get("title") or f"Recipe {idx}"
             r["ingredients"] = r.get("ingredients") or []
             r["steps"] = r.get("steps") or []
             r["tags"] = r.get("tags") or []
 
-            # Try OpenAI image first (only if enabled)
-            r["image_url"] = _gen_image_url(r["title"], kind) if settings.ENABLE_AI_IMAGES else None
-
-            # If no image (disabled or failed), try Spoonacular title search as a fallback
+            image_enabled = bool(getattr(settings, "ENABLE_AI_IMAGES", False))
+            r["image_url"] = _gen_image_url(r["title"], kind) if image_enabled else None
             if not r["image_url"]:
+                # call the TOP-LEVEL helper defined at the top of the file
                 r["image_url"] = _fallback_image_from_spoonacular(r["title"])
 
-        # Store in session for detail page and saving to favorites
         request.session["ai_recipes"] = recipes
         request.session.modified = True
 
@@ -382,11 +348,8 @@ def ai_recipes(request):
 # ------------------------------------------------------------------------------
 
 @login_required
+@require_POST
 def web_recipes(request):
-    if request.method != "POST":
-        messages.error(request, "Use the button to search recipes.")
-        return redirect("dashboard")
-
     kind = (request.POST.get("kind") or "food").strip().lower()  # 'food' or 'drink'
 
     pantry_raw = list(request.user.ingredients.values_list("name", flat=True))
@@ -434,7 +397,6 @@ def web_recipes(request):
             messages.error(request, f"Recipe search failed ({find_resp.status_code}).")
             return redirect("dashboard")
 
-
         found = [r for r in (find_resp.json() or []) if (r.get("usedIngredientCount") or 0) >= SPOON_MIN_MATCHED_API]
         if not found:
             messages.info(request, "No good matches—try adding one more ingredient.")
@@ -460,7 +422,6 @@ def web_recipes(request):
             return redirect("dashboard")
 
         details = {str(d["id"]): d for d in info_resp.json() if "id" in d}
-        pantry_set = set(pantry)
 
         results: list[dict] = []
         for item in found:
@@ -517,13 +478,15 @@ def web_recipes(request):
                 steps_list = [s.strip() for s in det["instructions"].split("\n") if s.strip()]
 
             title = det.get("title") or item.get("title")
+            image = det.get("image") or item.get("image")
 
             results.append(
                 {
-                    "id": int(sid),                               # <- IMPORTANT for detail lookup
-                    "title": title,                               # <- use 'title' (your template reads recipe.title)
-                    "label": title,                               # <- keep label for backwards compatibility
-                    "image": det.get("image") or item.get("image"),
+                    "id": int(sid),                               # for detail lookup
+                    "title": title,
+                    "label": title,                               # legacy compatibility
+                    "image": image,
+                    "image_url": image,                           # <-- consistent key for templates
                     "url": url,
                     "readyInMinutes": det.get("readyInMinutes"),
                     "servings": det.get("servings"),
@@ -531,10 +494,8 @@ def web_recipes(request):
                     "missedIngredientCount": len(missed_clean),
                     "usedIngredients": used_confirmed,
                     "missedIngredients": missed_clean,
-                    # NEW: include full data so detail page has content and Save captures it
                     "ingredients": ingredients_full,
                     "steps": steps_list,
-                    # also include Spoonacular’s original list if you want to use it in Save
                     "extendedIngredients": ingredients_full,
                     "instructions": "\n".join(steps_list) if steps_list else det.get("instructions", ""),
                 }
@@ -558,7 +519,6 @@ def web_recipes(request):
         logger.exception("Spoonacular parsing error")
         messages.error(request, f"Unexpected error: {e}")
         return redirect("dashboard")
-
 
 # ------------------------------------------------------------------------------
 # Recipe detail & Favorites
@@ -689,3 +649,43 @@ def favorite_delete(request, pk: int):
     fav.delete()
     messages.success(request, "Removed from Favorites.")
     return redirect("favorites")
+
+@login_required
+def recipe_create(request):
+    if request.method == "POST":
+        form = SavedRecipeForm(request.POST, request.FILES)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.user = request.user
+            # Pick a sensible default for manual entries:
+            obj.source = obj.source or "ai"   # or expose 'source' in the form if you prefer
+            obj.save()
+            return redirect("favorite_detail", pk=obj.pk)
+    else:
+        form = SavedRecipeForm()
+    return render(request, "core/recipe_form.html", {"form": form})
+
+@login_required
+def recipe_update(request, pk):
+    obj = get_object_or_404(SavedRecipe, pk=pk)
+    if obj.user != request.user and not request.user.is_superuser:
+        raise PermissionDenied("You do not have permission to edit this recipe.")
+    if request.method == "POST":
+        form = SavedRecipeForm(request.POST, request.FILES, instance=obj)
+        if form.is_valid():
+            form.save()
+            return redirect("favorite_detail", pk=obj.pk)
+    else:
+        form = SavedRecipeForm(instance=obj)
+    return render(request, "core/recipe_form.html", {"form": form, "recipe": obj})
+
+@require_POST
+@login_required
+def recipe_delete(request, pk):
+    obj = get_object_or_404(SavedRecipe, pk=pk)
+    if obj.user != request.user and not request.user.is_superuser:
+        raise PermissionDenied("You do not have permission to delete this recipe.")
+    if request.method == "POST":
+        obj.delete()
+        return redirect("dashboard")
+    return render(request, "core/recipe_confirm_delete.html", {"recipe": obj})

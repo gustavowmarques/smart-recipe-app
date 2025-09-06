@@ -1,17 +1,18 @@
 {% extends "core/base.html" %}
-{% block title %}Favorites{% endblock %}
+{% block title %}Favorites - Smart Recipe{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">Your Favorites</h2>
+<div class="mt-3">
+  <h1 class="h4 mb-3">Your Favorites</h1>
 
-{% if items %}
-  <div class="row g-4">
-    {% for it in items %}
-      <div class="col-12 col-md-6 col-lg-4">
+  {% if items %}
+    <div class="row g-3">
+      {% for it in items %}
+      <div class="col-12 col-sm-6 col-lg-4">
         <div class="card h-100 shadow-sm">
 
-          {% if it.image_url %}
-            <img src="{{ it.image_url }}" class="card-img-top" alt="{{ it.title|default:'Saved recipe' }}" style="height:200px; object-fit:cover;">
+          {% if it.image %}
+            <img src="{{ it.image }}" class="card-img-top" alt="{{ it.title|default:'Recipe image' }}">
           {% else %}
             <div class="bg-light border-bottom d-flex align-items-center justify-content-center" style="height:200px;">
               <span class="text-muted small">No image</span>
@@ -20,29 +21,25 @@
 
           <div class="card-body d-flex flex-column">
             <h5 class="card-title mb-1">{{ it.title|default:"Recipe" }}</h5>
-            <p class="small text-muted mb-3">{{ it.source|title }} recipe</p>
+            <p class="small text-muted mb-3">{{ it.source|default:"saved" | title }} recipe</p>
 
             <div class="mt-auto d-flex gap-2">
-              <a class="btn btn-sm btn-primary" href="{% url 'favorite_detail' it.pk %}">View</a>
+              <a class="btn btn-sm btn-primary" href="{% url 'core:favorite_detail' it.pk %}">View</a>
 
-              <form method="post" action="{% url 'favorite_delete' it.pk %}">
+              <form method="post" action="{% url 'core:favorite_delete' it.pk %}">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger">Remove</button>
+                <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
               </form>
             </div>
           </div>
 
         </div>
       </div>
-    {% endfor %}
-  </div>
-{% else %}
-  <div class="alert alert-light border d-flex align-items-center justify-content-between">
-    <div>
-      <strong>No favorites yet.</strong>
-      <span class="text-muted">Generate recipes and click “Save”.</span>
+      {% endfor %}
     </div>
-    <a class="btn btn-primary btn-sm" href="{% url 'dashboard' %}">Go to Dashboard</a>
-  </div>
-{% endif %}
+  {% else %}
+    <div class="alert alert-info">You don’t have any favorites yet.</div>
+    <a class="btn btn-primary" href="{% url 'core:dashboard' %}">Go to dashboard</a>
+  {% endif %}
+</div>
 {% endblock %}

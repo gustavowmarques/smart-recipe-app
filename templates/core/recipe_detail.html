@@ -17,13 +17,24 @@
         </a>
       {% endif %}
 
-      {% if already_saved %}
-        <span class="badge text-bg-success align-self-center">Saved ✓</span>
-      {% else %}
-        <form method="post" action="{% url 'save_favorite' source recipe.id %}">
+      {# DB-backed favorite: show Edit/Delete (favorite_pk should be provided by favorite_detail view) #}
+      {% if favorite_pk %}
+        <a href="{% url 'recipe_update' favorite_pk %}" class="btn btn-outline-primary btn-sm">Edit</a>
+        <form action="{% url 'recipe_delete' favorite_pk %}" method="post" class="d-inline">
           {% csrf_token %}
-          <button class="btn btn-outline-success btn-sm">Save to Favorites</button>
+          <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this recipe?')">Delete</button>
         </form>
+
+      {# Session-backed AI/Web: allow saving to favorites #}
+      {% else %}
+        {% if already_saved %}
+          <span class="badge text-bg-success align-self-center">Saved ✓</span>
+        {% else %}
+          <form method="post" action="{% url 'save_favorite' source recipe.id %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-success btn-sm">Save to Favorites</button>
+          </form>
+        {% endif %}
       {% endif %}
     </div>
   </div>
@@ -31,20 +42,19 @@
   <!-- Title -->
   <h2 class="mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
-  <!-- Image (AI image_url → Web image → placeholder) -->
+  <!-- Image (prefer image_url; fallback to image; else placeholder) -->
   <div class="mb-4">
     {% if recipe.image_url %}
-      <img src="{{ recipe.image_url }}" alt="{{ recipe.title|default:"Recipe" }}"
-           class="img-fluid rounded shadow-sm">
+      <img src="{{ recipe.image_url }}" alt="{{ recipe.title|default:'Recipe' }}" class="img-fluid rounded shadow-sm">
     {% elif recipe.image %}
-      <img src="{{ recipe.image }}" alt="{{ recipe.title|default:"Recipe" }}"
-           class="img-fluid rounded shadow-sm">
+      <img src="{{ recipe.image }}" alt="{{ recipe.title|default:'Recipe' }}" class="img-fluid rounded shadow-sm">
     {% else %}
-      <div class="bg-light border rounded d-flex align-items-center justify-content-center"
-           style="height: 360px;">
+      <div class="bg-light border rounded d-flex align-items-center justify-content-center" style="height: 360px;">
         <div class="text-center">
           <img src="{% static 'img/plate-placeholder.svg' %}" alt="" style="width:72px;height:72px;opacity:.35;">
-          <div class="mt-3 text-muted">Recipe image coming soon<br><small>Add a photo or enable AI images</small></div>
+          <div class="mt-3 text-muted">
+            Recipe image coming soon<br><small>Add a photo or enable AI images</small>
+          </div>
         </div>
       </div>
     {% endif %}

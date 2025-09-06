@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from uuid import uuid4
 
 class Ingredient(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ingredients")
@@ -42,3 +43,8 @@ class SavedRecipe(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.source})"
+    
+    def save(self, *args, **kwargs):
+        if not self.external_id:
+            self.external_id = str(uuid4())
+        return super().save(*args, **kwargs)

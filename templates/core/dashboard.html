@@ -37,7 +37,7 @@
             <td>{{ ing.quantity|default:"—" }}</td>
             <td>{{ ing.unit|default:"—" }}</td>
             <td class="text-end">
-              <form method="post" action="{% url 'delete_ingredient' ing.pk %}" class="d-inline">
+              <form method="post" action="{% url 'core:delete_ingredient' ing.pk %}" class="d-inline">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-danger">Remove</button>
               </form>
@@ -76,13 +76,13 @@
 
       <div class="col-auto">
         <!-- Same form; different endpoints via formaction -->
-        <button class="btn btn-success" formaction="{% url 'ai_recipes' %}">
+        <button class="btn btn-success" formaction="{% url 'core:ai_recipes' %}">
           Get AI Recipes
         </button>
       </div>
 
       <div class="col-auto">
-        <button class="btn btn-outline-primary" formaction="{% url 'web_recipes' %}">
+        <button class="btn btn-outline-primary" formaction="{% url 'core:web_recipes' %}">
           Search the Web
         </button>
       </div>
@@ -100,7 +100,7 @@
 <div class="card">
   <div class="card-header">Add an ingredient</div>
   <div class="card-body">
-    <form class="row g-2 align-items-end" method="post" action="{% url 'add_ingredient' %}">
+    <form class="row g-2 align-items-end" method="post" action="{% url 'core:add_ingredient' %}">
       {% csrf_token %}
       <div class="col-md-6">
         <label class="form-label">Name</label>
