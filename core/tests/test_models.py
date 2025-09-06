@@ -4,6 +4,7 @@ from core.models import SavedRecipe
 
 User = get_user_model()
 
+
 class SavedRecipeModelTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="alice", password="pass123")
@@ -22,6 +23,5 @@ class SavedRecipeModelTests(TestCase):
         self.assertEqual(obj.source, "ai")
         self.assertEqual(obj.external_id, "1")
         self.assertIn("Pepper", obj.title)
-        # JSON fields stored as python lists
         self.assertIsInstance(obj.ingredients_json, list)
         self.assertIsInstance(obj.steps_json, list)

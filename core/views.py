@@ -414,13 +414,26 @@ def web_recipes(request):
             },
             timeout=20,
         )
-        if find_resp.status_code == 429:
-            messages.error(request, "Spoonacular rate limit reached. Please try again later.")
+        # Friendly handling of common Spoonacular errors
+        if find_resp.status_code in (402, 429):
+            try:
+                detail = find_resp.json().get("message") or ""
+            except Exception:
+                detail = ""
+            if find_resp.status_code == 402:
+                msg = "Spoonacular daily points limit reached. Try again after reset or use AI recipes."
+            else:  # 429
+                msg = "Spoonacular rate limit reached. Please try again in a bit."
+            if detail:
+                msg += f" ({detail})"
+            messages.error(request, msg)
             return redirect("dashboard")
+
         if find_resp.status_code != 200:
             logger.error("findByIngredients %s: %s", find_resp.status_code, find_resp.text)
             messages.error(request, f"Recipe search failed ({find_resp.status_code}).")
             return redirect("dashboard")
+
 
         found = [r for r in (find_resp.json() or []) if (r.get("usedIngredientCount") or 0) >= SPOON_MIN_MATCHED_API]
         if not found:

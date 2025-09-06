@@ -5,6 +5,7 @@ from core.models import SavedRecipe
 
 User = get_user_model()
 
+
 class TemplateSmokeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="tina", password="pass123")
@@ -13,7 +14,9 @@ class TemplateSmokeTests(TestCase):
     def test_favorites_page_smoke(self):
         # create one favorite so the grid renders
         SavedRecipe.objects.create(
-            user=self.user, source="web", external_id="999",
+            user=self.user,
+            source="web",
+            external_id="999",
             title="Web Lasagna",
             image_url="https://img.test/lasagna.jpg",
             ingredients_json=[{"original": "12 lasagna sheets"}],
