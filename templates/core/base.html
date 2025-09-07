@@ -46,9 +46,21 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if current in 'favorites favorite_detail' %}active{% endif %}" href="{% url 'core:favorites' %}" aria-current="{% if current in 'favorites favorite_detail' %}page{% endif %}">
+              <a class="nav-link {% if current == 'favorites' or current == 'favorite_detail' %}active{% endif %}"
+                href="{% url 'core:favorites' %}"
+                aria-current="{% if current == 'favorites' or current == 'favorite_detail' %}page{% endif %}">
                 Favorites
               </a>
+
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.path|slice:":10" == "/meal-plan" %}active{% endif %}" href="{% url 'core:meal_plan' %}">Meal plan</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.path|slice:":7" == "/targets" %}active{% endif %}" href="{% url 'core:nutrition_target' %}">Targets</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.path|slice:":14" == "/pantry/upload" %}active{% endif %}" href="{% url 'core:pantry_upload' %}">Pantry upload</a>
             </li>
           {% endif %}
         </ul>

@@ -1,5 +1,5 @@
 from django import forms
-from .models import Ingredient, SavedRecipe
+from .models import Ingredient, SavedRecipe, NutritionTarget, PantryImageUpload, Meal
 
 
 class IngredientForm(forms.ModelForm):
@@ -71,3 +71,66 @@ class SavedRecipeForm(forms.ModelForm):
         if not title:
             raise forms.ValidationError("Please enter a title.")
         return title
+
+class NutritionTargetForm(forms.ModelForm):
+    class Meta:
+        model = NutritionTarget
+        fields = ["calories", "protein_g", "carbs_g", "fat_g"]
+        widgets = {
+            "calories": forms.NumberInput(attrs={"min": 0, "step": 10, "class": "form-control"}),
+            "protein_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
+            "carbs_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
+            "fat_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
+        }
+
+class PantryImageUploadForm(forms.ModelForm):
+    class Meta:
+        model = PantryImageUpload
+        fields = ["image"]  # keep it minimal for now
+        widgets = {
+            "image": forms.ClearableFileInput(attrs={"class": "form-control"})
+        }
+
+# A tiny helper for adding meals to a plan
+def _slot_choices():
+    """
+    Return choices for the meal slot/type, regardless of how the model defined it.
+    Tries Meal.Slot.choices first, then Meal.MEAL_TYPES, then a safe fallback.
+    """
+    # Django TextChoices pattern: class Slot(models.TextChoices): ...
+    if hasattr(Meal, "Slot") and hasattr(Meal.Slot, "choices"):
+        return list(Meal.Slot.choices)
+
+    # Older/manual style tuple on the model
+    if hasattr(Meal, "MEAL_TYPES"):
+        return list(Meal.MEAL_TYPES)
+
+    # Last-resort fallback so server still runs
+    return [
+        ("breakfast", "Breakfast"),
+        ("lunch", "Lunch"),
+        ("dinner", "Dinner"),
+        ("snack", "Snack"),
+    ]
+
+# ---- meal add form ---------------------------------------------------------
+
+class MealAddForm(forms.Form):
+    date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    slot = forms.ChoiceField(choices=[])  # filled in __init__
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if hasattr(Meal, "Slot") and hasattr(Meal.Slot, "choices"):
+            self.fields["slot"].choices = list(Meal.Slot.choices)
+        elif hasattr(Meal, "MEAL_TYPES"):
+            self.fields["slot"].choices = list(Meal.MEAL_TYPES)
+        else:
+            self.fields["slot"].choices = [
+                ("breakfast", "Breakfast"),
+                ("lunch", "Lunch"),
+                ("dinner", "Dinner"),
+                ("snack", "Snack"),
+            ]
+
+

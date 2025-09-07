@@ -27,6 +27,10 @@
 
             <div class="mt-auto d-flex gap-2">
               <a class="btn btn-sm btn-primary" href="{% url 'core:favorite_detail' it.pk %}">View</a>
+              <a class="btn btn-sm btn-success"
+                href="{% url 'core:meal_plan' %}?recipe={{ it.id|urlencode }}">
+                Plan
+              </a>
               <form method="post" action="{% url 'core:favorite_delete' it.pk %}" class="d-inline">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>

@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% block title %}Your Pantry Uploads{% endblock %}
+{% block content %}
+<div class="mt-3">
+  <h1 class="h5 mb-3">Uploads</h1>
+  <div class="row g-3">
+    {% for up in uploads %}
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card h-100 shadow-sm">
+        {% if up.image %}
+          <img src="{{ up.image.url }}" class="card-img-top" alt="Upload">
+        {% endif %}
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <span class="badge text-bg-secondary">{{ up.status }}</span>
+            <span class="text-muted small">{{ up.created_at|date:"Y-m-d H:i" }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">No uploads yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -13,13 +13,13 @@
 # ------------------------------------------------------------------------------
 
 from __future__ import annotations
-
+import datetime as dt
 import json
 import logging
 import os
 import re
 from typing import Optional
-
+from django.utils import timezone
 import requests
 from django.conf import settings
 from django.contrib import messages
@@ -27,10 +27,13 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.db import IntegrityError
+from .forms import IngredientForm, SavedRecipeForm, NutritionTargetForm, PantryImageUploadForm, MealAddForm
+from .models import Ingredient, SavedRecipe, NutritionTarget, MealPlan, Meal, PantryImageUpload, SavedRecipe
+from collections import defaultdict
 
-from .forms import IngredientForm, SavedRecipeForm
-from .models import Ingredient, SavedRecipe
 
 logger = logging.getLogger(__name__)
 
@@ -689,3 +692,169 @@ def recipe_delete(request, pk):
         obj.delete()
         return redirect("dashboard")
     return render(request, "core/recipe_confirm_delete.html", {"recipe": obj})
+
+def _monday_for(anchor: dt.date) -> dt.date:
+    """Return the Monday for the week that contains 'anchor'."""
+    return anchor - dt.timedelta(days=anchor.weekday())
+
+@login_required
+def nutrition_target_upsert(request):
+    target, _ = NutritionTarget.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        form = NutritionTargetForm(request.POST, instance=target)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Nutrition target saved.")
+            return redirect("core:meal_plan")
+    else:
+        form = NutritionTargetForm(instance=target)
+    return render(request, "core/nutrition_target.html", {"form": form})
+
+@login_required
+def meal_plan_view(request):
+    # 1) which week?
+    qs = request.GET.get("week")
+    today = timezone.localdate()
+    try:
+        anchor = dt.date.fromisoformat(qs) if qs else today
+    except (TypeError, ValueError):
+        anchor = today
+
+    week_start = _monday_for(anchor)
+    week_days = [week_start + dt.timedelta(days=i) for i in range(7)]
+
+    # 2) load/create the plan and the meals in this week
+    plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week_start)
+    meals = (
+        Meal.objects
+        .filter(plan=plan, date__range=[week_start, week_start + dt.timedelta(days=6)])
+        .select_related("recipe")
+    )
+
+    # 3) unify the slot/meal_type name and index meals by (date, slot_value)
+    def slot_of(m: Meal):
+        return getattr(m, "meal_type", None) or getattr(m, "slot", None)
+
+    by_key = {(m.date, slot_of(m)): m for m in meals if slot_of(m)}
+
+    # 4) canonical slot list (value, label)
+    if hasattr(Meal, "Slot") and hasattr(Meal.Slot, "choices"):
+        slots = list(Meal.Slot.choices)
+    elif hasattr(Meal, "MEAL_TYPES"):
+        slots = list(Meal.MEAL_TYPES)
+    else:
+        slots = [
+            ("breakfast", "Breakfast"),
+            ("lunch", "Lunch"),
+            ("dinner", "Dinner"),
+            ("snack", "Snack"),
+        ]
+    slot_values = [v for v, _ in slots]
+
+    # 5) build simple rows the template can render without custom tags
+    rows = []
+    for day in week_days:
+        cells = [by_key.get((day, sv)) for sv in slot_values]  # aligned with 'slots'
+        rows.append({"date": day, "cells": cells})
+
+    # recipe preselect coming from Favorites (“Plan” button)
+    sel = request.GET.get("recipe")
+    try:
+        selected_recipe_id = int(sel) if sel else None
+    except (TypeError, ValueError):
+        selected_recipe_id = None
+
+    add_form = MealAddForm()  # server-side validation; template renders options from `slots`
+    favorites = request.user.saved_recipes.all()
+
+    return render(
+        request,
+        "core/meal_plan.html",
+        {
+            "plan": plan,
+            "rows": rows,                 # [{date, cells=[Meal|None,...]}]
+            "slots": slots,               # [(value,label), ...]
+            "favorites": favorites,
+            "selected_recipe_id": selected_recipe_id,
+            "week_start": week_start,
+        },
+    )
+
+
+@login_required
+def meal_add(request):
+    if request.method != "POST":
+        return redirect("core:meal_plan")
+
+    form = MealAddForm(request.POST)
+    recipe_id = request.POST.get("recipe_id")
+
+    if not recipe_id:
+        messages.error(request, "Please choose a recipe to add.")
+        return redirect("core:meal_plan")
+
+    if not form.is_valid():
+        messages.error(request, "Invalid form data.")
+        return redirect("core:meal_plan")
+
+    date = form.cleaned_data["date"]
+    slot = form.cleaned_data["slot"]  # e.g. 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
+    week_start = _monday_for(date)
+    plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week_start)
+    recipe = get_object_or_404(SavedRecipe, pk=recipe_id, user=request.user)
+
+    # set the right field name depending on your model
+    fields = {"plan": plan, "date": date, "recipe": recipe}
+    if hasattr(Meal, "meal_type"):
+        fields["meal_type"] = slot
+        exists_filter = {"plan": plan, "date": date, "meal_type": slot}
+    else:
+        fields["slot"] = slot
+        exists_filter = {"plan": plan, "date": date, "slot": slot}
+
+    # prevent duplicates in the same slot/day
+    if Meal.objects.filter(**exists_filter).exists():
+        messages.warning(request, "There is already a meal in that slot.")
+    else:
+        try:
+            Meal.objects.create(**fields)
+            messages.success(
+                request,
+                f'Added “{(recipe.title or "Untitled")}” to {date} ({slot}).'
+            )
+        except IntegrityError:
+            messages.warning(request, "There is already a meal in that slot.")
+
+    success_url = f"{reverse('core:meal_plan')}?week={week_start.isoformat()}"
+    return redirect(success_url)
+
+
+
+@login_required
+def meal_delete(request, meal_id: int):
+    meal = get_object_or_404(Meal, pk=meal_id, plan__user=request.user)
+    week = meal.date.isoformat()
+    meal.delete()
+    messages.success(request, "Meal removed.")
+    return redirect(f"{redirect('core:meal_plan').url}?week={week}")
+
+@login_required
+def pantry_upload(request):
+    if request.method == "POST":
+        form = PantryImageUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            up = form.save(commit=False)
+            up.user = request.user
+            up.status = PantryImageUpload.Status.PENDING  # fits your model choices
+            up.save()
+            messages.success(request, "Image received. We'll process it shortly.")
+            return redirect("core:pantry_upload_list")
+    else:
+        form = PantryImageUploadForm()
+    return render(request, "core/pantry_upload.html", {"form": form})
+
+@login_required
+def pantry_upload_list(request):
+    uploads = PantryImageUpload.objects.filter(user=request.user).order_by("-created_at")
+    return render(request, "core/pantry_upload_list.html", {"uploads": uploads})

@@ -29,5 +29,13 @@ urlpatterns = [
     path("recipes/new/", views.recipe_create, name="recipe_create"),
     path("recipes/<int:pk>/edit/", views.recipe_update, name="recipe_update"),
     path("recipes/<int:pk>/delete/", views.recipe_delete, name="recipe_delete"),
-    path("recipes/<int:pk>/", views.favorite_detail, name="recipe_detail"),  # <-- FIXED
+    path("recipes/<int:pk>/", views.favorite_detail, name="recipe_detail"),  
+
+    path("targets/", views.nutrition_target_upsert, name="nutrition_target"),
+    path("meal-plan/", views.meal_plan_view, name="meal_plan"),
+    path("meal-plan/add/", views.meal_add, name="meal_add"),
+    path("meal-plan/<int:meal_id>/delete/", views.meal_delete, name="meal_delete"),
+
+    path("pantry/upload/", views.pantry_upload, name="pantry_upload"),
+    path("pantry/uploads/", views.pantry_upload_list, name="pantry_upload_list"),
 ]
