@@ -11,8 +11,10 @@
       <div class="col-12 col-sm-6 col-lg-4">
         <div class="card h-100 shadow-sm">
 
-          {% if it.image %}
-            <img src="{{ it.image }}" class="card-img-top" alt="{{ it.title|default:'Recipe image' }}">
+          {# Safely pick the first available image field #}
+          {% firstof it.image it.image_url it.data.image it.data.image_url as img %}
+          {% if img %}
+            <img src="{{ img }}" class="card-img-top" alt="{{ it.title|default:'Recipe image' }}">
           {% else %}
             <div class="bg-light border-bottom d-flex align-items-center justify-content-center" style="height:200px;">
               <span class="text-muted small">No image</span>
@@ -21,12 +23,11 @@
 
           <div class="card-body d-flex flex-column">
             <h5 class="card-title mb-1">{{ it.title|default:"Recipe" }}</h5>
-            <p class="small text-muted mb-3">{{ it.source|default:"saved" | title }} recipe</p>
+            <p class="small text-muted mb-3">{{ it.source|default:"saved"|title }} recipe</p>
 
             <div class="mt-auto d-flex gap-2">
               <a class="btn btn-sm btn-primary" href="{% url 'core:favorite_detail' it.pk %}">View</a>
-
-              <form method="post" action="{% url 'core:favorite_delete' it.pk %}">
+              <form method="post" action="{% url 'core:favorite_delete' it.pk %}" class="d-inline">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
               </form>
