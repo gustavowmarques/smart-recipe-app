@@ -619,8 +619,19 @@ def _get_session_list_for_source(request, source: str) -> list[dict]:
 # Core pages & pantry CRUD
 # =============================================================================
 
-def home(_request):
-    return render(_request, "core/home.html")
+def home(request):
+    return render(request, "core/home.html")
+
+def demo_mode(request):
+    """
+    Lightweight ‘try without account’:
+    - mark session as demo
+    - optionally preload some sample data (left as TODO)
+    - send user to dashboard or a demo landing if you prefer
+    """
+    request.session["is_demo"] = True
+    messages.info(request, "You’re viewing a demo with sample data. Create an account to save your changes.")
+    return redirect("core:dashboard")  # or render a demo page if you have one
 
 @login_required
 def dashboard(request):

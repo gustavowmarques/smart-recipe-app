@@ -6,6 +6,7 @@ app_name = "core"
 urlpatterns = [
     # Home / Dashboard
     path("", views.home, name="home"),
+    path("demo/", views.demo_mode, name="demo_mode"), 
     path("dashboard/", views.dashboard, name="dashboard"),
 
     # Pantry (manual CRUD)

@@ -17,6 +17,8 @@
 </head>
 <body class="bg-light">
 
+  {# Navbar can be hidden by overriding this block in child templates #}
+  {% block navbar %}
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg bg-white navbar-light border-bottom sticky-top">
     <div class="container">
@@ -36,28 +38,33 @@
         <!-- Left nav -->
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link {% if current == 'home' %}active{% endif %}" href="{% url 'core:home' %}" aria-current="{% if current == 'home' %}page{% endif %}">Home</a>
+            <a class="nav-link {% if current == 'home' %}active{% endif %}"
+               href="{% url 'core:home' %}"
+               aria-current="{% if current == 'home' %}page{% endif %}">Home</a>
           </li>
 
           {% if user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'core:dashboard' %}" aria-current="{% if current == 'dashboard' %}page{% endif %}">
+              <a class="nav-link {% if current == 'dashboard' %}active{% endif %}"
+                 href="{% url 'core:dashboard' %}"
+                 aria-current="{% if current == 'dashboard' %}page{% endif %}">
                 Dashboard
               </a>
             </li>
             <li class="nav-item">
               <a class="nav-link {% if current == 'favorites' or current == 'favorite_detail' %}active{% endif %}"
-                href="{% url 'core:favorites' %}"
-                aria-current="{% if current == 'favorites' or current == 'favorite_detail' %}page{% endif %}">
+                 href="{% url 'core:favorites' %}"
+                 aria-current="{% if current == 'favorites' or current == 'favorite_detail' %}page{% endif %}">
                 Favorites
               </a>
-
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if request.path|slice:":10" == "/meal-plan" %}active{% endif %}" href="{% url 'core:meal_plan' %}">Meal plan</a>
+              <a class="nav-link {% if request.path|slice:":10" == "/meal-plan" %}active{% endif %}"
+                 href="{% url 'core:meal_plan' %}">Meal plan</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if request.path|slice:":7" == "/targets" %}active{% endif %}" href="{% url 'core:nutrition_target' %}">Targets</a>
+              <a class="nav-link {% if request.path|slice:":7" == "/targets" %}active{% endif %}"
+                 href="{% url 'core:nutrition_target' %}">Targets</a>
             </li>
           {% endif %}
         </ul>
@@ -69,17 +76,24 @@
             <span class="navbar-text d-none d-lg-inline text-muted me-1">
               Hi, {{ user.username }}
             </span>
-            <!-- Use Django auth 'logout' (not namespaced) and POST -->
             <form class="mb-0" method="post" action="{% url 'logout' %}">
               {% csrf_token %}
               <button class="btn btn-outline-danger btn-sm">Logout</button>
             </form>
           {% else %}
-            <!-- Use Django auth 'login' (not namespaced) -->
-            <a class="btn btn-outline-secondary btn-sm" href="{% url 'login' %}">Login</a>
+            {# Safe login URL resolution: Django auth OR allauth #}
+            {% url 'login' as login_url %}
+            {% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
 
-            <!-- Register link only if your accounts app provides it -->
+            {% if login_url %}
+              <a class="btn btn-outline-secondary btn-sm" href="{{ login_url }}">Login</a>
+            {% endif %}
+
+            {# 📝 Safe register URL resolution: your app OR namespaced OR allauth #}
             {% url 'accounts:register' as register_url %}
+            {% if not register_url %}{% url 'register' as register_url %}{% endif %}
+            {% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
+
             {% if register_url %}
               <a class="btn btn-primary btn-sm" href="{{ register_url }}">Register</a>
             {% endif %}
@@ -88,6 +102,7 @@
       </div>
     </div>
   </nav>
+  {% endblock navbar %}
 
   <!-- Main -->
   <main class="container mb-5">

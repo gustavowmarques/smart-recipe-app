@@ -1,19 +1,195 @@
 {% extends "core/base.html" %}
-{% block title %}Home - Smart Recipe{% endblock %}
+{% load static %}
+
+{# Show navbar only for authenticated users (hide for visitors) #}
+{% block navbar %}
+  {% if user.is_authenticated %}
+    {{ block.super }}
+  {% endif %}
+{% endblock %}
+
 
 {% block content %}
-<div class="p-5 bg-white rounded-3 shadow-sm">
-  <h1 class="display-6 mb-3">From fridge → recipe in seconds</h1>
-  <p class="text-muted">Save your ingredients, get recipe ideas, and plan your week.</p>
+{# Safe URLs up front #}
+{% url 'login' as login_url %}{% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
+{% url 'accounts:register' as register_url %}{% if not register_url %}{% url 'register' as register_url %}{% endif %}{% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
+{% url 'core:dashboard' as dash_url %}
+{% url 'core:favorites' as fav_url %}
+{% url 'core:meal_plan' as plan_url %}
+{% url 'core:demo_mode' as demo_url %}
 
-  <div class="mt-3">
-    {# Only render Register if your accounts app exposes it #}
-    {% url 'accounts:register' as register_url %}
-    {% if register_url %}
-      <a class="btn btn-primary me-2" href="{{ register_url }}">Get started free</a>
-    {% endif %}
-
-    <a class="btn btn-outline-secondary" href="{% url 'login' %}">I already have an account</a>
+<section class="container" style="max-width: 980px;">
+  <div class="text-center pt-5 pb-4">
+    <h1 class="display-6 fw-semibold">From fridge → recipe in seconds</h1>
+    <p class="text-muted mt-2">
+      Save your ingredients, get smart recipe ideas, build meal plans, and hit your targets.
+    </p>
   </div>
-</div>
+
+  {# Primary actions #}
+  <div class="row g-4">
+    {% if not user.is_authenticated %}
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex align-items-center mb-2">
+              <div class="me-2 fs-4">👤</div>
+              <h5 class="card-title mb-0">Create your free account</h5>
+            </div>
+            <p class="card-text text-muted">
+              Start here to save your pantry, favorite recipes, and meal plans. It takes less than a minute.
+            </p>
+            <div class="mt-auto">
+              {% if register_url %}
+                <a href="{{ register_url }}" class="btn btn-primary w-100" data-bs-toggle="tooltip"
+                   title="Create a free account to unlock all features">
+                  Create my free recipe account
+                </a>
+              {% else %}
+                <a class="btn btn-primary w-100 disabled" tabindex="-1" aria-disabled="true"
+                   data-bs-toggle="tooltip" title="Registration temporarily unavailable">
+                  Create my free recipe account
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex align-items-center mb-2">
+              <div class="me-2 fs-4">🔑</div>
+              <h5 class="card-title mb-0">Already have an account?</h5>
+            </div>
+            <p class="card-text text-muted">
+              Log in to access your saved ingredients, favorites, meal plan, and nutrition targets.
+            </p>
+            <div class="mt-auto">
+              {% if login_url %}
+                <a href="{{ login_url }}{% if dash_url %}?next={{ dash_url }}{% endif %}"
+                   class="btn btn-outline-primary w-100" data-bs-toggle="tooltip"
+                   title="Log in to continue where you left off">
+                  Log in
+                </a>
+              {% else %}
+                <a class="btn btn-outline-primary w-100 disabled" tabindex="-1" aria-disabled="true"
+                   data-bs-toggle="tooltip" title="Login route not configured">
+                  Log in
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      {# When logged in, show a single CTA to the dashboard #}
+      <div class="col-md-12">
+        <div class="alert alert-success d-flex align-items-center" role="alert">
+          <div class="me-2">✅</div>
+          <div>You’re logged in. Jump back into your pantry and recipes.</div>
+          <div class="ms-auto">
+            {% if dash_url %}
+              <a href="{{ dash_url }}" class="btn btn-success btn-sm">Go to dashboard</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# Feature preview — locked for visitors, active when logged in #}
+  <div class="mt-5">
+    <h6 class="text-uppercase text-muted fw-bold small mb-3">What you can do</h6>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2 fs-5">📦</span>
+              <h6 class="mb-0">Pantry &amp; fridge</h6>
+            </div>
+            <p class="text-muted small mb-3">
+              Save ingredients to get instant recipe matches and reduce waste.
+            </p>
+            {% if user.is_authenticated and dash_url %}
+              <a href="{{ dash_url }}" class="btn btn-sm btn-primary w-100">Open pantry</a>
+            {% else %}
+              <a class="btn btn-sm btn-light disabled w-100" data-bs-toggle="tooltip" title="Login required">
+                <span class="me-1">Locked</span> 🔒
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2 fs-5">⭐</span>
+              <h6 class="mb-0">Favorites</h6>
+            </div>
+            <p class="text-muted small mb-3">
+              Keep your go-to recipes in one place for quick weeknight wins.
+            </p>
+            {% if user.is_authenticated and fav_url %}
+              <a href="{{ fav_url }}" class="btn btn-sm btn-primary w-100">View favorites</a>
+            {% else %}
+              <a class="btn btn-sm btn-light disabled w-100" data-bs-toggle="tooltip" title="Login required">
+                <span class="me-1">Locked</span> 🔒
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex align-items-center mb-2">
+              <span class="me-2 fs-5">📅</span>
+              <h6 class="mb-0">Meal plan &amp; targets</h6>
+            </div>
+            <p class="text-muted small mb-3">
+              Build a balanced plan and track protein, calories, and more.
+            </p>
+            {% if user.is_authenticated and plan_url %}
+              <a href="{{ plan_url }}" class="btn btn-sm btn-primary w-100">Open planner</a>
+            {% else %}
+              <a class="btn btn-sm btn-light disabled w-100" data-bs-toggle="tooltip" title="Login required">
+                <span class="me-1">Locked</span> 🔒
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Optional: Demo mode for visitors only #}
+  {% if not user.is_authenticated and demo_url %}
+    <div class="text-center my-5">
+      <a href="{{ demo_url }}" class="btn btn-secondary"
+         data-bs-toggle="tooltip" title="Explore with sample data. No account needed.">
+        Try a quick demo (no signup)
+      </a>
+    </div>
+  {% endif %}
+
+  <hr class="my-5">
+
+  <div class="text-center text-muted small">
+    <p class="mb-1">
+      New: add ingredients by taking a photo (mobile camera supported) — available after login.
+    </p>
+    <p class="mb-0">Privacy-friendly, nothing shared without consent.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ block.super }}
+  <script src="{% static 'js/landing.js' %}" defer></script>
 {% endblock %}

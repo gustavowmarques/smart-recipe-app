@@ -190,7 +190,7 @@ LOGGING = {
 # Authentication redirects
 # ---------------------------------------------------------------------
 LOGIN_URL = "/accounts/login/"
-LOGIN_REDIRECT_URL = "dashboard"
+LOGIN_REDIRECT_URL = "core:dashboard"
 LOGOUT_REDIRECT_URL = "core:home"
 
 # ---------------------------------------------------------------------

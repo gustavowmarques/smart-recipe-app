@@ -11,7 +11,6 @@ urlpatterns = [
 
     # Django auth (provides 'login', 'logout', password URLs)
     path("accounts/", include("django.contrib.auth.urls")),
-
     path("accounts/", include(("accounts.urls", "accounts"), namespace="accounts")),
 
 ]

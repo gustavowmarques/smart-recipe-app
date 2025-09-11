@@ -1,50 +1,54 @@
 {% extends "core/base.html" %}
-{% block title %}Login - Smart Recipe{% endblock %}
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title mb-3">Login</h5>
 
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+{% block content %}
+<div class="container" style="max-width: 520px;">
+  <div class="card shadow-sm my-5">
+    <div class="card-body p-4">
+      <h1 class="h4 mb-3">Log in</h1>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+
+        {# Render the default auth form safely #}
+        {{ form.as_p }}
+
+        {# Keep 'next' if present #}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
         {% endif %}
 
-        <form method="post" novalidate>
-          {% csrf_token %}
+        <button type="submit" class="btn btn-primary w-100">Log in</button>
+      </form>
 
-          <div class="mb-3">
-            {{ form.username.label_tag }}
-            {{ form.username }}
-            {% if form.username.errors %}
-              <div class="text-danger small">{{ form.username.errors }}</div>
-            {% endif %}
-          </div>
+      <hr class="my-4">
 
-          <div class="mb-3">
-            {{ form.password.label_tag }}
-            <div class="input-group">
-              {{ form.password }}
-              <button type="button"
-                      class="btn btn-outline-secondary toggle-password"
-                      data-target="id_password"
-                      aria-label="Show or hide password">
-                <i class="bi bi-eye"></i>
-              </button>
-            </div>
-            {% if form.password.errors %}
-              <div class="text-danger small">{{ form.password.errors }}</div>
-            {% endif %}
-          </div>
+      {# 🔐 Safe login URL resolution (for the “back to login” case if needed) #}
+      {% url 'login' as login_url %}
+      {% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
 
-          <button class="btn btn-primary w-100">Login</button>
-        </form>
+      {# 📝 Safe register URL resolution: try your app, then a plain 'register', then allauth #}
+      {% url 'accounts:register' as register_url %}
+      {% if not register_url %}{% url 'register' as register_url %}{% endif %}
+      {% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
 
-        <hr>
-        <p class="small mb-0">
-          No account? <a href="{% url 'register' %}">Register</a>
-        </p>
+      {# 🔁 Safe password reset URL (Django auth or allauth) #}
+      {% url 'password_reset' as reset_url %}
+      {% if not reset_url %}{% url 'account_reset_password' as reset_url %}{% endif %}
+
+      <div class="d-flex flex-column gap-2 small">
+        {% if register_url %}
+          <div>No account? <a href="{{ register_url }}">Create one</a>.</div>
+        {% endif %}
+        {% if reset_url %}
+          <div><a href="{{ reset_url }}">Forgot your password?</a></div>
+        {% endif %}
+        {% if login_url and not register_url and not reset_url %}
+          <div class="text-muted">If you can’t sign in, contact support.</div>
+        {% endif %}
       </div>
     </div>
   </div>
