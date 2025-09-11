@@ -23,8 +23,8 @@ urlpatterns = [
     path("web/recipes/", views.web_recipes, name="web_recipes"),
 
     # Session-backed detail pages (now accept slug OR digits)
-    path("ai/recipes/<slug:recipe_id>/",  views.recipe_detail, {"source": "ai"},  name="recipe_detail_ai"),
-    path("web/recipes/<int:recipe_id>/",  views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
+    path("ai/recipes/<slug:recipe_id>/", views.recipe_detail, {"source": "ai"}, name="recipe_detail_ai"),
+    path("web/recipes/<slug:recipe_id>/", views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
 
 
     # accepts both AI slugs and numeric web IDs
@@ -56,6 +56,7 @@ urlpatterns = [
     path("pantry/review/<int:pk>/", views.pantry_review, name="pantry_review"),
     path("pantry/extract/start/", views.pantry_extract_start, name="pantry_extract_start"),
     path("pantry/extract/<int:upload_id>/review/", views.pantry_extract_review, name="pantry_extract_review"),
+
     # Used by the dashboard "Upload & Review" form
     path("pantry/upload-to-review/", views.pantry_extract_start, name="pantry_upload_to_review"),
 ]

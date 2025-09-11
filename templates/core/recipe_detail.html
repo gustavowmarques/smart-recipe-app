@@ -30,9 +30,11 @@
         {% if already_saved %}
           <span class="badge text-bg-success align-self-center">Saved ✓</span>
         {% else %}
-          <form method="post" action="{% url 'save_favorite' source recipe.id %}">
+          <form method="post" action="{% url 'core:save_favorite' source recipe.id %}" class="d-inline">
             {% csrf_token %}
-            <button class="btn btn-outline-success btn-sm">Save to Favorites</button>
+            <button class="btn btn-outline-primary">
+              <i class="bi bi-heart"></i> Save to Favorites
+            </button>
           </form>
         {% endif %}
       {% endif %}
