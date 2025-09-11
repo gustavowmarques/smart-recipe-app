@@ -1,126 +1,145 @@
 {% extends "core/base.html" %}
-{% load static %}
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
+<div class="container my-4">
 
-<!-- Header -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="mb-0">Your Pantry</h4>
-  <div class="form-check m-0">
-    <input class="form-check-input" type="checkbox" id="selectAllPantry">
-    <label class="form-check-label" for="selectAllPantry">Select all</label>
-  </div>
-</div>
+  {# flash messages #}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">
+      {% if message.tags == 'success' %}<i class="bi bi-check-circle me-1"></i>{% endif %}
+      {{ message }}
+    </div>
+  {% endfor %}
 
-<!-- Pantry table -->
-<div class="card mb-4">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm table-striped mb-0 align-middle">
+  <h1 class="h5 mb-3">Your Pantry</h1>
+
+  {# --------------------------------------------------------------------------
+     PANTRY TABLE + RECIPE SEARCH/GENERATE
+     This single form sends any checked ingredient IDs as `selected`
+     along with the chosen type to core:recipes_search
+     -------------------------------------------------------------------------- #}
+  <form method="post" action="{% url 'core:recipes_search' %}">
+    {% csrf_token %}
+
+    <div class="d-flex justify-content-end align-items-center mb-2 small text-muted">
+      <div class="form-check">
+        <input id="select-all" class="form-check-input" type="checkbox">
+        <label for="select-all" class="form-check-label">Select all</label>
+      </div>
+    </div>
+
+    <div class="table-responsive bg-white rounded-3 shadow-sm mb-3">
+      <table class="table align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th style="width:40px;"></th>
-            <th>Ingredient</th>
-            <th style="width:110px;">Qty</th>
-            <th style="width:110px;">Unit</th>
-            <th class="text-end" style="width:120px;">Actions</th>
+            <th style="width:6%"></th>
+            <th style="width:46%">Ingredient</th>
+            <th style="width:18%">Qty</th>
+            <th style="width:18%">Unit</th>
+            <th style="width:12%" class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for ing in ingredients %}
           <tr>
             <td>
-              <input class="form-check-input pantry-check" type="checkbox" value="{{ ing.id }}" aria-label="Select {{ ing.name }}">
+              <input class="form-check-input ing-check" type="checkbox" name="selected" value="{{ ing.pk }}">
             </td>
             <td>{{ ing.name }}</td>
             <td>{{ ing.quantity|default:"—" }}</td>
             <td>{{ ing.unit|default:"—" }}</td>
             <td class="text-end">
-              <form method="post" action="{% url 'core:delete_ingredient' ing.pk %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger">Remove</button>
-              </form>
+              <a class="btn btn-outline-danger btn-sm" href="{% url 'core:delete_ingredient' ing.pk %}">Remove</a>
             </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="text-muted">No ingredients yet. Add one below.</td>
+            <td colspan="5" class="text-muted py-4 text-center">No ingredients yet.</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
-</div>
 
-<!-- Generate recipes -->
-<div class="card mb-4">
-  <div class="card-body">
-    <form
-      id="generateForm"
-      method="post"
-      data-selected-target="selectedIds"
-      class="row g-2 align-items-end"
-    >
-      {% csrf_token %}
-      <input type="hidden" name="selected_ids" id="selectedIds">
-
-      <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold">Recipe type:</label>
-        <select name="kind" class="form-select">
-          <option value="food" selected>Food</option>
-          <option value="drink">Drink</option>
-        </select>
-      </div>
-
-      <div class="col-auto">
-        <!-- Same form; different endpoints via formaction -->
-        <button class="btn btn-success" formaction="{% url 'core:ai_recipes' %}">
-          Get AI Recipes
-        </button>
-      </div>
-
-      <div class="col-auto">
-        <button class="btn btn-outline-primary" formaction="{% url 'core:web_recipes' %}">
-          Search the Web
-        </button>
-      </div>
-
-      <div class="col-12">
-        <p class="text-muted small mb-0">
+    <div class="card mb-4 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6 mb-3">Recipe type</h2>
+        <div class="row g-2 align-items-center">
+          <div class="col-auto">
+            <select class="form-select" name="type" style="min-width: 140px;">
+              <option value="food" selected>Food</option>
+              <option value="drink">Drink</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-success">Search / Generate recipes</button>
+          </div>
+        </div>
+        <div class="text-muted small mt-2">
           Tip: tick ingredients above to use only those; leave unticked items out of generation.
-        </p>
+        </div>
       </div>
-    </form>
+    </div>
+  </form>
+
+  {# --------------------------------------------------------------------------
+     ADD INGREDIENTS — manual entry
+     -------------------------------------------------------------------------- #}
+  <div class="card shadow-sm">
+    <div class="card-header bg-white">
+      <h2 class="h6 mb-0">Add ingredients</h2>
+    </div>
+    <div class="card-body">
+
+      {# 1) MANUAL ADD — independent form so required fields apply only here #}
+      <form method="post" action="{% url 'core:add_ingredient' %}" class="mb-4">
+        {% csrf_token %}
+        <div class="row g-2 align-items-center">
+          <div class="col-lg-5">
+            <label class="form-label small text-muted">Name</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. bell pepper" required>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label small text-muted">Quantity</label>
+            <input type="text" name="quantity" class="form-control" placeholder="e.g. 2 or 200">
+          </div>
+          <div class="col-lg-2">
+            <label class="form-label small text-muted">Unit</label>
+            <input type="text" name="unit" class="form-control" placeholder="e.g. g, pcs">
+          </div>
+          <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100">
+              <i class="bi bi-plus-lg me-1"></i>Add
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <hr class="my-3">
+
+      {# 2) PHOTO UPLOAD → REVIEW — independent form (manual fields above not required here) #}
+      <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="input-group">
+          <input class="form-control" type="file" name="image" accept="image/*" aria-label="Upload a photo" required>
+          <button class="btn btn-primary" type="submit">Upload &amp; Review</button>
+        </div>
+        <div class="form-text">Receipt, shelf, handwritten list, etc.</div>
+      </form>
+
+    </div>
   </div>
 </div>
 
-<!-- Add ingredient -->
-<div class="card">
-  <div class="card-header">Add an ingredient</div>
-  <div class="card-body">
-    <form class="row g-2 align-items-end" method="post" action="{% url 'core:add_ingredient' %}">
-      {% csrf_token %}
-      <div class="col-md-6">
-        <label class="form-label">Name</label>
-        {{ form.name }}
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Quantity</label>
-        {{ form.quantity }}
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Unit</label>
-        {{ form.unit }}
-      </div>
-      <div class="col-12 col-md-auto">
-        <button class="btn btn-primary mt-2 mt-md-4">Add</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- JS: collects selected IDs on submit & handles "select all" -->
-<script src="{% static 'js/pantry-selection.js' %}"></script>
+{# Small helper to toggle all checkboxes #}
+<script>
+  (function () {
+    const selectAll = document.getElementById('select-all');
+    if (!selectAll) return;
+    selectAll.addEventListener('change', function () {
+      document.querySelectorAll('.ing-check').forEach(cb => cb.checked = selectAll.checked);
+    });
+  })();
+</script>
 {% endblock %}

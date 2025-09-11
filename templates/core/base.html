@@ -59,9 +59,6 @@
             <li class="nav-item">
               <a class="nav-link {% if request.path|slice:":7" == "/targets" %}active{% endif %}" href="{% url 'core:nutrition_target' %}">Targets</a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.path|slice:":14" == "/pantry/upload" %}active{% endif %}" href="{% url 'core:pantry_upload' %}">Pantry upload</a>
-            </li>
           {% endif %}
         </ul>
         {% endwith %}

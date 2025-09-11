@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+{% block title %}Review items — Smart Recipe{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h2 class="h5 mb-3">Review extracted items</h2>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="mb-3">
+    <img src="{{ upload.image.url }}" alt="Upload" class="img-fluid rounded shadow-sm" style="max-height:220px">
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}
+      <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+    {% endif %}
+
+    <div class="table-responsive bg-white rounded-3 shadow-sm">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:48%">Name</th>
+            <th style="width:22%">Quantity</th>
+            <th style="width:20%">Unit</th>
+            <th style="width:10%" class="text-end">Remove</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in formset.forms %}
+          <tr>
+            <td>{{ f.name }}</td>
+            <td>{{ f.quantity }}</td>
+            <td>{{ f.unit }}</td>
+            <td class="text-end">{% if formset.can_delete %}{{ f.DELETE }}{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="text-muted py-4 text-center">
+              We couldn’t find items in that image. You can manually fill the rows below and save.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between mt-3">
+      <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">Back</a>
+      <button class="btn btn-primary">
+        <i class="bi bi-check2-circle me-1"></i>Add to pantry
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
