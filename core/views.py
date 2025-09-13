@@ -51,6 +51,7 @@ from .forms import (
 )
 
 
+
 # ---- OpenAI client (new SDK, optional) ---------------------------------------
 try:
     from openai import OpenAI  # pip install openai
@@ -696,20 +697,27 @@ def delete_ingredient(request, pk: int):
 # Pantry photo extraction — VIEWS
 # =============================================================================
 
-@require_http_methods(["GET", "POST"])
 @login_required
+@require_http_methods(["POST"])
 def pantry_extract_start(request):
     """
     Save uploaded image → extract candidates (OCR then Vision) → store → review.
     Triggered by 'Upload & Review' on the dashboard.
     """
-    form = PantryImageUploadForm(request.POST, request.FILES)
-    if not form.is_valid():
-        messages.error(request, "Please choose a valid image.")
+    uploaded = request.FILES.get("upload")
+    if not uploaded:
+        messages.error(request, "Please choose an image to upload.")
         return redirect("core:dashboard")
 
-    up = form.save(commit=False)
-    up.user = request.user
+    # (Optional) lightweight content-type guard
+    allowed_ct = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"}
+    if uploaded.content_type and uploaded.content_type.lower() not in allowed_ct:
+        messages.error(request, "Unsupported image type. Please upload a JPG/PNG/WEBP/HEIC image.")
+        return redirect("core:dashboard")
+
+    # Create the DB record and persist the image via the model field
+    up = PantryImageUpload(user=request.user)
+    # If your model has a Status enum/choices with PENDING, set it safely:
     try:
         up.status = (
             getattr(PantryImageUpload, "PENDING", None)
@@ -718,15 +726,34 @@ def pantry_extract_start(request):
         )
     except Exception:
         pass
-    up.save()
 
-    # Build an absolute URL for the Vision(URL) fallback
+    # Keep extension and store under a stable prefix; generating a unique filename
+    ext = (Path(uploaded.name).suffix or ".jpg").lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
+        ext = ".jpg"
+    unique_name = f"pantry_uploads/{uuid4().hex}{ext}"
+
+    # This writes the file using the default storage (S3 in prod, filesystem in dev)
+    # and assigns the name to up.image. save=True will also call up.save().
+    up.image.save(unique_name, uploaded, save=True)
+
+    # Build a public absolute URL for Vision / review page
     img_url = request.build_absolute_uri(up.image.url)
-    candidates = _extract_candidates(image_path=up.image.path, image_url=img_url)
+
+    # Some storages (S3) don't support .path; guard it.
+    try:
+        img_path = up.image.path  # works on local filesystem storage
+    except Exception:
+        img_path = None
+
+    # Run extraction. Your helper should tolerate img_path=None and use img_url.
+    # (If your OCR needs bytes, we can adapt to open the file via default_storage.)
+    candidates = _extract_candidates(image_path=img_path, image_url=img_url)
+
+    # Persist parsed candidates to the upload record (your existing helper)
     _store_upload_results(up, candidates)
 
     return redirect("core:pantry_extract_review", upload_id=up.pk)
-
 
 @require_http_methods(["GET", "POST"])
 @login_required
