@@ -26,7 +26,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import IntegrityError
+from django.db import transaction, IntegrityError
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -321,14 +321,12 @@ def _ocr_extract_text(image_path: str) -> str:
     Extract raw text from an image using Tesseract if available.
     Returns '' on failure so callers can fall back safely.
     """
-    # Lazy import: if pytesseract isn't installed, just skip OCR gracefully.
     try:
         import pytesseract
     except ImportError:
         logger.info("pytesseract not installed; skipping OCR.")
         return ""
 
-    # Lazy import: only pull in Pillow when (and if) we actually do OCR.
     try:
         from PIL import Image
     except ImportError:
@@ -338,10 +336,16 @@ def _ocr_extract_text(image_path: str) -> str:
     try:
         with Image.open(image_path) as img:
             return pytesseract.image_to_string(img)
+    except pytesseract.TesseractNotFoundError:
+        logger.info("Tesseract binary not installed; skipping OCR.")
+        return ""
     except Exception:
         logger.exception("OCR failed.")
         return ""
 
+# Patterns used by _parse_ingredients_from_text
+_NUM_RE = r"(\d+(?:\.\d+)?)"
+_UNIT_RE = r"(g|kg|mg|ml|l|tbsp|tsp|teaspoons?|tablespoons?|cup|cups|oz|ounce|ounces|lb|lbs|pound|pounds|pc|pcs|piece|pieces|can|cans|pack|packs)"
 
 def _parse_ingredients_from_text(text: str) -> List[dict]:
     """
@@ -698,7 +702,7 @@ def pantry_extract_start(request):
     """
     Save uploaded image → extract candidates (OCR then Vision) → store → review.
     Triggered by 'Upload & Review' on the dashboard.
-    """    
+    """
     form = PantryImageUploadForm(request.POST, request.FILES)
     if not form.is_valid():
         messages.error(request, "Please choose a valid image.")
@@ -754,7 +758,7 @@ def pantry_extract_review(request, upload_id: int):
     """
     up = get_object_or_404(PantryImageUpload, pk=upload_id, user=request.user)
 
-    # Load saved candidates
+    # Load saved candidates from either .results or .results_json
     raw = up.results if getattr(up, "results", None) else getattr(up, "results_json", None)
     if isinstance(raw, str):
         try:
@@ -768,15 +772,22 @@ def pantry_extract_review(request, upload_id: int):
 
     initial_list = data.get("candidates") or data.get("items") or []
 
-    # Normalize into form field names
+    # ---- Normalize into form field names (safe defaults) ----
     def _norm(d):
         if not isinstance(d, dict):
             return {}
         name = (d.get("name") or "").strip()
-        qty  = d.get("quantity", d.get("qty", ""))
-        qty  = "" if qty is None else str(qty).strip()
-        unit = (d.get("unit") or "").strip()
-        return {"name": name, "quantity": qty, "unit": unit}
+
+        # quantity arrives as string/number; keep as string for the form
+        qty_raw = d.get("quantity", d.get("qty", ""))
+        quantity = "" if qty_raw is None else str(qty_raw).strip()
+
+        # unit default to 'pcs' if missing/blank (so DB won't get NULL later)
+        unit = (d.get("unit", d.get("u", "")) or "").strip()
+        if not unit:
+            unit = "pcs"
+
+        return {"name": name, "quantity": quantity, "unit": unit}
 
     initial = [_norm(d) for d in initial_list if isinstance(d, dict)]
 
@@ -809,50 +820,52 @@ def pantry_extract_review(request, upload_id: int):
     if request.method == "POST":
         formset = ReviewSet(request.POST)
         if formset.is_valid():
-            from django.db import transaction
             added = 0
             updated = 0
 
-            with transaction.atomic():
-                for row in formset.cleaned_data:
-                    if not row or row.get("DELETE"):
-                        continue
-                    name = (row.get("name") or "").strip()
-                    if not name:
-                        continue
+            for row in formset.cleaned_data:
+                if not row or row.get("DELETE"):
+                    continue
 
-                    qty_dec = _to_decimal(row.get("quantity"))
-                    unit = (row.get("unit") or "").strip() or None
+                name = (row.get("name") or "").strip()
+                if not name:
+                    continue
 
-                    try:
-                        obj = Ingredient.objects.select_for_update().get(
-                            user=request.user, name__iexact=name
-                        )
-                        obj.name = name or obj.name
-                        if qty_dec is not None:
-                            obj.quantity = (obj.quantity or Decimal("0")) + qty_dec
-                        if unit:
-                            obj.unit = unit
-                        obj.save()
-                        updated += 1
-                    except Ingredient.DoesNotExist:
+                qty_dec = _to_decimal(row.get("quantity"))
+                unit_val = (row.get("unit") or "").strip()
+
+                # For UPDATE: only update unit if provided (keep existing otherwise)
+                # For CREATE: ensure non-null unit using default 'pcs'
+                create_unit = unit_val or "pcs"
+
+                try:
+                    with transaction.atomic():
                         try:
+                            obj = Ingredient.objects.select_for_update().get(
+                                user=request.user, name__iexact=name
+                            )
+                            # Merge quantity
+                            if qty_dec is not None:
+                                obj.quantity = (obj.quantity or Decimal("0")) + qty_dec
+                            # Update unit only if user provided one
+                            if unit_val:
+                                obj.unit = unit_val
+                            # Keep normalized name casing if you want
+                            obj.name = name or obj.name
+                            obj.save()
+                            updated += 1
+                        except Ingredient.DoesNotExist:
                             Ingredient.objects.create(
                                 user=request.user,
                                 name=name,
-                                quantity=qty_dec,
-                                unit=unit,
+                                quantity=qty_dec,   # can be None if your field allows NULL
+                                unit=create_unit,   # NEVER NULL on create
                             )
                             added += 1
-                        except IntegrityError:
-                            obj = Ingredient.objects.get(user=request.user, name__iexact=name)
-                            obj.name = name or obj.name
-                            if qty_dec is not None:
-                                obj.quantity = (obj.quantity or Decimal("0")) + qty_dec
-                            if unit:
-                                obj.unit = unit
-                            obj.save()
-                            updated += 1
+                except IntegrityError:
+                    # One bad row shouldn't kill the whole request
+                    messages.error(request, f"Could not save “{name}”. Please adjust and try again.")
+                    continue
 
             if added or updated:
                 parts = []
@@ -865,11 +878,11 @@ def pantry_extract_review(request, upload_id: int):
             return redirect("core:dashboard")
 
         messages.error(request, "Please fix the highlighted rows.")
+        # fall through to re-render the formset with errors
     else:
         formset = ReviewSet(initial=initial)
 
     return render(request, "core/pantry_review.html", {"upload": up, "formset": formset})
-
 
 @login_required
 def pantry_review(request, pk: int):
@@ -1313,7 +1326,7 @@ def save_favorite(request, source, recipe_id):
     if isinstance(steps_raw, str):
         steps = [s.strip() for s in steps_raw.split("\n") if s.strip()]
     elif isinstance(steps_raw, list):
-        # analyzedInstructions: [{name, steps:[{number, step, ...}, ...]}, ...]
+        # analyzedInstructions: [{name, steps:[{number, step, ...}, ...}, ...]
         if steps_raw and isinstance(steps_raw[0], dict) and "steps" in steps_raw[0]:
             for block in steps_raw:
                 for st in (block.get("steps") or []):
