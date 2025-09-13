@@ -11,7 +11,8 @@ urlpatterns = [
 
     # Pantry (manual CRUD)
     path("pantry/add/", views.add_ingredient, name="add_ingredient"),
-    path("panry/<int:pk>/delete/", views.delete_ingredient, name="delete_ingredient"),
+    path("pantry/<int:pk>/delete/", views.delete_ingredient, name="delete_ingredient"),
+
 
     # --- Unified recipe search flow ---
     # 1) Single entry point: queries Spoonacular + OpenAI with the same inputs
