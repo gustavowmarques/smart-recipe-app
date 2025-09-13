@@ -80,6 +80,7 @@ INSTALLED_APPS = [
 
     # third-party
     "rest_framework",
+    "storages", 
 
     # local
     "core",
@@ -171,6 +172,26 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# --- Use S3 for MEDIA in production (or whenever env vars are set) ---
+USE_S3 = (not DEBUG) and bool(os.getenv("smart-recipe-media-prod"))
+
+if USE_S3:
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+
+    AWS_STORAGE_BUCKET_NAME = os.getenv("smart-recipe-media-prod")
+    AWS_S3_REGION_NAME = os.getenv("eu-north-1")   # e.g. "eu-west-1"
+    AWS_ACCESS_KEY_ID = os.getenv("AKIA-REDACTED")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+    AWS_QUERYSTRING_AUTH = False      # public, cacheable URLs
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    # Optional, helps in some setups:
+    # AWS_S3_ADDRESSING_STYLE = "virtual"
+
+    # Public S3 URL for media files
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
 
 # ---------------------------------------------------------------------
 # LOGGING (show errors in Render logs)

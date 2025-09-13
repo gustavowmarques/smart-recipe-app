@@ -37,8 +37,8 @@ class Ingredient(models.Model):
         help_text="Optional quantity text, e.g. '2', '200g'.",
     )
     unit = models.CharField(
-        max_length=20, blank=True,
-        help_text="Optional unit text, e.g. 'g', 'pcs'.",
+        max_length=32, default="pcs", blank=True,
+        null=False
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
