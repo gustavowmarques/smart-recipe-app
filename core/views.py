@@ -10,7 +10,6 @@ from typing import Optional, List
 from decimal import Decimal, InvalidOperation
 
 # ---- OCR helpers -------------------------------------------------------------
-from PIL import Image
 try:
     import pytesseract
 except Exception:
@@ -50,6 +49,7 @@ from .forms import (
     PantryImageUploadForm,
     MealAddForm,
 )
+
 
 # ---- OpenAI client (new SDK, optional) ---------------------------------------
 try:
@@ -321,20 +321,27 @@ def _ocr_extract_text(image_path: str) -> str:
     Extract raw text from an image using Tesseract if available.
     Returns '' on failure so callers can fall back safely.
     """
-    if not pytesseract:
-        logger.info("pytesseract not installed; skipping local OCR.")
-        return ""
+    # Lazy import: if pytesseract isn't installed, just skip OCR gracefully.
     try:
-        img = Image.open(image_path)
-        return pytesseract.image_to_string(img)
-    except Exception:
-        logger.exception("Local OCR failed.")
+        import pytesseract
+    except ImportError:
+        logger.info("pytesseract not installed; skipping OCR.")
         return ""
 
+    # Lazy import: only pull in Pillow when (and if) we actually do OCR.
+    try:
+        from PIL import Image
+    except ImportError:
+        logger.info("Pillow (PIL) not installed; skipping OCR.")
+        return ""
 
-# Very permissive line parser for OCR text → {name, quantity, unit}
-_UNIT_RE = r"(?:kg|g|lb|oz|l|ml|cup|cups|tbsp|tsp|pcs?|piece|pieces|ct|bag|can|pack|bottle|bottles)"
-_NUM_RE = r"(?:\d+(?:[.,]\d+)?)"
+    try:
+        with Image.open(image_path) as img:
+            return pytesseract.image_to_string(img)
+    except Exception:
+        logger.exception("OCR failed.")
+        return ""
+
 
 def _parse_ingredients_from_text(text: str) -> List[dict]:
     """
@@ -691,7 +698,7 @@ def pantry_extract_start(request):
     """
     Save uploaded image → extract candidates (OCR then Vision) → store → review.
     Triggered by 'Upload & Review' on the dashboard.
-    """
+    """    
     form = PantryImageUploadForm(request.POST, request.FILES)
     if not form.is_valid():
         messages.error(request, "Please choose a valid image.")
@@ -1347,7 +1354,7 @@ def favorite_delete(request, pk: int):
     fav = get_object_or_404(SavedRecipe, pk=pk, user=request.user)
     fav.delete()
     messages.success(request, "Removed from Favorites.")
-    return redirect("favorites")
+    return redirect("core:favorites")
 
 
 # =============================================================================
@@ -1363,7 +1370,7 @@ def recipe_create(request):
             obj.user = request.user
             obj.source = obj.source or "ai"
             obj.save()
-            return redirect("favorite_detail", pk=obj.pk)
+            return redirect("core:favorite_detail", pk=obj.pk)
     else:
         form = SavedRecipeForm()
     return render(request, "core/recipe_form.html", {"form": form})
@@ -1377,7 +1384,7 @@ def recipe_update(request, pk):
         form = SavedRecipeForm(request.POST, request.FILES, instance=obj)
         if form.is_valid():
             form.save()
-            return redirect("favorite_detail", pk=obj.pk)
+            return redirect("core:favorite_detail", pk=obj.pk)
     else:
         form = SavedRecipeForm(instance=obj)
     return render(request, "core/recipe_form.html", {"form": form, "recipe": obj})
