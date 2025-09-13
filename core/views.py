@@ -24,6 +24,7 @@ from django import forms
 from django.conf import settings
 from django.forms import formset_factory
 from django.contrib import messages
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError
@@ -623,15 +624,23 @@ def home(request):
     return render(request, "core/home.html")
 
 def demo_mode(request):
-    """
-    Lightweight ‘try without account’:
-    - mark session as demo
-    - optionally preload some sample data (left as TODO)
-    - send user to dashboard or a demo landing if you prefer
-    """
-    request.session["is_demo"] = True
-    messages.info(request, "You’re viewing a demo with sample data. Create an account to save your changes.")
-    return redirect("core:dashboard")  # or render a demo page if you have one
+    # Only allow in development; remove this guard if you want in prod.
+    if not getattr(settings, "DEBUG", False):
+        messages.error(request, "Demo mode is unavailable.")
+        return redirect("core:home")
+
+    User = get_user_model()
+    demo, _ = User.objects.get_or_create(
+        username="demo_user",
+        defaults={"email": "demo@smartrecipe.test"}
+    )
+    # Make sure demo user cannot be used directly
+    demo.set_unusable_password()
+    demo.save()
+
+    login(request, demo, backend="django.contrib.auth.backends.ModelBackend")
+    messages.info(request, "You're using a demo account. Changes won't be saved permanently.")
+    return redirect("core:dashboard")
 
 @login_required
 def dashboard(request):

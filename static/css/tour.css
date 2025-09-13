@@ -1,0 +1,14 @@
+.tour-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  z-index: 1040; display: none;
+}
+.tour-pop {
+  position: absolute; max-width: 340px; background: #fff; border-radius: .5rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.2); padding: 12px 12px 10px; z-index: 1041;
+}
+.tour-pop .tour-text { font-size: .95rem; margin-bottom: .5rem; }
+.tour-pop .tour-actions { display:flex; gap:.5rem; justify-content:flex-end; }
+.tour-highlight {
+  position: absolute; border: 2px solid #0d6efd; border-radius: .75rem; z-index: 1041;
+  box-shadow: 0 0 0 9999px rgba(13,110,253,.15);
+}

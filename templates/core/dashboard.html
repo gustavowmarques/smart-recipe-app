@@ -1,5 +1,7 @@
 {% extends "core/base.html" %}
+{% load static %}
 {% block title %}Dashboard{% endblock %}
+{% block body_attrs %}data-enable-tour="1"{% endblock %}
 
 {% block content %}
 <div class="container my-4">
@@ -12,14 +14,22 @@
     </div>
   {% endfor %}
 
-  <h1 class="h5 mb-3">Your Pantry</h1>
+  {# Tour step 1: Pantry header #}
+  <h1 class="h5 mb-3"
+      data-tour-step="1"
+      data-tour-text="This is your Pantry. Add items here to get tailored recipes.">
+    Your Pantry
+  </h1>
 
   {# --------------------------------------------------------------------------
      PANTRY TABLE + RECIPE SEARCH/GENERATE
      This single form sends any checked ingredient IDs as `selected`
      along with the chosen type to core:recipes_search
      -------------------------------------------------------------------------- #}
-  <form method="post" action="{% url 'core:recipes_search' %}">
+  <form method="post" action="{% url 'core:recipes_search' %}"
+        id="generate-form"
+        data-tour-step="2"
+        data-tour-text="Pick what you want to cook & click Search / Generate to see recipes.">
     {% csrf_token %}
 
     <div class="d-flex justify-content-end align-items-center mb-2 small text-muted">
@@ -84,9 +94,12 @@
   </form>
 
   {# --------------------------------------------------------------------------
-     ADD INGREDIENTS — manual entry
+     ADD INGREDIENTS — manual entry + photo upload
      -------------------------------------------------------------------------- #}
-  <div class="card shadow-sm">
+  <div class="card shadow-sm"
+       id="add-ingredients-card"
+       data-tour-step="3"
+       data-tour-text="Add ingredients manually or upload a photo. On mobile, use your camera to snap items.">
     <div class="card-header bg-white">
       <h2 class="h6 mb-0">Add ingredients</h2>
     </div>
@@ -118,28 +131,39 @@
 
       <hr class="my-3">
 
-      {# 2) PHOTO UPLOAD → REVIEW — independent form (manual fields above not required here) #}
-      <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data">
+      {# 2) PHOTO UPLOAD → REVIEW — independent form #}
+      <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data" id="pantry-photo-form">
         {% csrf_token %}
+
+        <label for="upload" class="form-label small text-muted">Upload photo of ingredients (or scan):</label>
         <div class="input-group">
-          <input class="form-control" type="file" name="image" accept="image/*" aria-label="Upload a photo" required>
+          {# ⚠️ Keep 'name' aligned with your view; change to 'upload' only if your view expects that #}
+          <input
+            type="file"
+            name="image"
+            id="upload"
+            accept="image/*"
+            capture="environment"
+            class="form-control"
+            aria-label="Upload a photo of your ingredients"
+            required
+          >
+          <button class="btn btn-outline-secondary" type="button" id="scan-btn">Scan with camera</button>
           <button class="btn btn-primary" type="submit">Upload &amp; Review</button>
         </div>
-        <div class="form-text">Receipt, shelf, handwritten list, etc.</div>
-      </form>
 
+        <div class="form-text">
+          Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.
+        </div>
+        <small class="text-muted">Tip: on mobile, use the camera to snap your ingredients.</small>
+      </form>
     </div>
   </div>
 </div>
+{% endblock %}
 
-{# Small helper to toggle all checkboxes #}
-<script>
-  (function () {
-    const selectAll = document.getElementById('select-all');
-    if (!selectAll) return;
-    selectAll.addEventListener('change', function () {
-      document.querySelectorAll('.ing-check').forEach(cb => cb.checked = selectAll.checked);
-    });
-  })();
-</script>
+{% block body_scripts %}
+  {{ block.super }}
+  <script src="{% static 'js/tour.js' %}" defer></script>
+  <script src="{% static 'js/dashboard.js' %}" defer></script>
 {% endblock %}
