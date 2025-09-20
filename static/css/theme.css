@@ -24,9 +24,33 @@ body { background: var(--page-bg); }
 .recipe-badge { position:absolute; top:.5rem; left:.5rem; z-index: 2; }
 
 .tr-today { background: rgba(37,99,235,.06); }
-@media (prefers-color-scheme: dark){
-  .tr-today { background: rgba(37,99,235,.12); }
+
+/* ---- Dark theme (opt-in with .theme-dark on <body>) ---- */
+.theme-dark{
+  --page-bg: #0f1115;
+  --bs-body-color: #e8eaf2;
+  --bs-body-bg: var(--page-bg);
 }
+.theme-dark .card, 
+.theme-dark .table, 
+.theme-dark .empty { background:#141926; color:var(--bs-body-color); }
+.theme-dark .table thead { background:#0f1420; }
+.theme-dark .navbar, 
+.theme-dark .bg-white { background:#0f1420 !important; }
+
+/* Hero readability in dark */
+.theme-dark .hero { 
+  background: linear-gradient(135deg, rgba(37,99,235,.20), rgba(16,185,129,.14));
+}
+.theme-dark .hero h1,
+.theme-dark .hero .lead { color:#eef3ff; text-shadow:0 1px 2px rgba(0,0,0,.45); }
+.theme-dark .hero-art .hero-photo { filter: brightness(.8) contrast(1.05); }
+
+/* Badges, alerts, outlines with better contrast */
+.theme-dark .badge.bg-primary-subtle { background:rgba(37,99,235,.25) !important; color:#cfe0ff !important; }
+.theme-dark .alert-success { background:#113a20; border-color:#1e6d3a; color:#c9f8d9; }
+.theme-dark .btn-outline-primary { color:#bcd3ff; border-color:#2b5bbf; }
+
 
 .skeleton{ background: linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%); background-size: 400% 100%; animation: sk 1.2s ease-in-out infinite; }
 @keyframes sk { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
