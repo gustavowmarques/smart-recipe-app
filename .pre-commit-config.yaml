@@ -1,0 +1,27 @@
+﻿repos:
+  # Basic hygiene checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: [--maxkb=10240]   # block files >10MB from being added
+
+  # Detect newly introduced secrets at commit time (diff-based)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        stages: [commit]
+
+  # Gitleaks at push time (belt-and-suspenders)
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        # Runs only on push; scans staged changes for secrets and redacts output
+        stages: [push]
+        args: ["protect", "--staged", "--redact"]
