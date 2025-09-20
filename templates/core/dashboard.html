@@ -25,11 +25,11 @@
     Your Pantry
   </h1>
 
-  <!-- {# --------------------------------------------------------------------------
+  {# --------------------------------------------------------------------------
      PANTRY TABLE + RECIPE SEARCH/GENERATE
      This single form sends any checked ingredient IDs as `selected`
      along with the chosen type to core:recipes_search
-     -------------------------------------------------------------------------- #} -->
+     -------------------------------------------------------------------------- #}
   <form method="post" action="{% url 'core:recipes_search' %}"
         id="generate-form"
         data-tour-step="2"
@@ -99,9 +99,9 @@
     </div>
   </form>
 
-  <!-- --------------------------------------------------------------------------
+  --------------------------------------------------------------------------
      ADD INGREDIENTS — manual entry + photo upload
-  -------------------------------------------------------------------------- -->
+  --------------------------------------------------------------------------
   <div class="card shadow-sm"
        id="add-ingredients-card"
        data-tour-step="3"
@@ -137,7 +137,7 @@
 
       <hr class="my-3">
 
-       <!-- 2) PHOTO UPLOAD → REVIEW — independent form (legacy path still supported) -->
+       2) PHOTO UPLOAD → REVIEW — independent form (legacy path still supported)
       <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data" id="pantry-photo-form">
         {% csrf_token %}
 

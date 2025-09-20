@@ -10,7 +10,7 @@ def register(request):
             user = form.save()
             login(request, user)
             messages.success(request, "Welcome! Your account was created.")
-            return redirect("dashboard")
+            return redirect("core:dashboard")
     else:
         form = UserCreationForm()
     return render(request, "accounts/register.html", {"form": form})

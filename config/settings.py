@@ -175,9 +175,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Toggle S3
-USE_S3 = (os.getenv("USE_S3", "0") == "1") or ((not DEBUG) and bool(os.getenv("AWS_STORAGE_BUCKET_NAME")))
+USE_S3 = os.getenv("USE_S3", "") == "1"
 
 if USE_S3:
+
     INSTALLED_APPS += ["storages"]
 
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"

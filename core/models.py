@@ -217,7 +217,7 @@ class PantryImageUpload(models.Model):
         FAILED  = "failed",  "Failed"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    image = models.ImageField(upload_to="pantry_uploads/")
+    image = models.ImageField(upload_to="media/pantry_uploads/")
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     results = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
