@@ -1,11 +1,11 @@
 {% extends "core/base.html" %}
 {% load static %}
 {% block title %}Dashboard{% endblock %}
+
 {% block body_attrs %}
   data-enable-tour="1"
   data-presign-url="{% url 'core:presign_s3_upload' %}"
 {% endblock %}
-
 
 {% block content %}
 <div class="container my-4">
@@ -18,27 +18,108 @@
     </div>
   {% endfor %}
 
-  {# Tour step 1: Pantry header #}
-  <h1 class="h4 fw-semibold mb-3"
-      data-tour-step="1"
-      data-tour-text="This is your Pantry. Add items here to get tailored recipes.">
-    Your Pantry
-  </h1>
+  {# ---------- friendly intro / guidance ---------- #}
+  {% with has_items=ingredients|length %}
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+      <h1 class="h4 fw-semibold mb-2">Welcome!</h1>
+      <p class="text-muted mb-3">
+        This is your pantry. Add ingredients to get tailored recipes you can actually make.
+      </p>
+      <ul class="mb-0">
+        <li><strong>Step 1:</strong> <em>Add to Pantry</em> — type items below or upload a photo.</li>
+        <li><strong>Step 2:</strong> Pick any pantry items you want to use and click <em>Search / Generate recipes</em>.</li>
+      </ul>
 
-  {# --------------------------------------------------------------------------
-     PANTRY TABLE + RECIPE SEARCH/GENERATE
-     This single form sends any checked ingredient IDs as `selected`
-     along with the chosen type to core:recipes_search
-     -------------------------------------------------------------------------- #}
+      {% if not has_items %}
+        <div class="alert alert-info d-flex align-items-start gap-2 mt-3 mb-0">
+          <i class="bi bi-info-circle"></i>
+          <div>
+            Your pantry is empty — add your first ingredient below to get started.
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endwith %}
+
+  {# ---------- ADD INGREDIENTS (first) ---------- #}
+  <div class="card shadow-sm mb-4"
+       id="add-ingredients-card"
+       data-tour-step="1"
+       data-tour-text="Add ingredients manually or upload a photo. On mobile, use your camera to snap items.">
+    <div class="card-header bg-white">
+      <h2 class="h6 mb-0">Add ingredients</h2>
+    </div>
+    <div class="card-body">
+
+      {# 1) Manual add (independent form) #}
+      <form method="post" action="{% url 'core:add_ingredient' %}" class="mb-4">
+        {% csrf_token %}
+        <div class="row g-2 align-items-center">
+          <div class="col-lg-5">
+            <label class="form-label small text-muted">Name</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. bell pepper" required>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label small text-muted">Quantity</label>
+            <input type="text" name="quantity" class="form-control" placeholder="e.g. 2 or 200">
+          </div>
+          <div class="col-lg-2">
+            <label class="form-label small text-muted">Unit</label>
+            <input type="text" name="unit" class="form-control" placeholder="e.g. g, pcs">
+          </div>
+          <div class="col-lg-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100">
+              <i class="bi bi-plus-lg me-1"></i>Add to Pantry
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <hr class="my-3">
+
+      {# 2) Photo upload (independent form) #}
+      <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}"
+            enctype="multipart/form-data" id="pantry-photo-form">
+        {% csrf_token %}
+        <label for="upload" class="form-label small text-muted">Upload photo of ingredients (or scan):</label>
+        <div class="input-group">
+          <input type="file" name="upload" id="upload" accept="image/*" capture="environment"
+                 class="form-control" aria-label="Upload a photo of your ingredients" required>
+          <button class="btn btn-outline-secondary" type="button" id="scan-btn">Scan with camera</button>
+          <button class="btn btn-primary" type="submit" id="upload-submit">Upload &amp; Review</button>
+        </div>
+        <div class="form-text">Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.</div>
+
+        <div id="upload-progress" class="mt-2 d-none">
+          <div class="progress" role="progressbar" aria-label="Upload progress">
+            <div class="progress-bar" style="width: 0%">0%</div>
+          </div>
+          <small class="text-muted" id="upload-status">Preparing…</small>
+        </div>
+      </form>
+
+      {# hand-off form after S3 upload #}
+      <form id="start-extract-form" method="post" action="{% url 'core:pantry_extract_start' %}" class="d-none">
+        {% csrf_token %}
+        <input type="hidden" name="s3_key" id="s3_key">
+      </form>
+    </div>
+  </div>
+
+  {# ---------- PANTRY TABLE + GENERATE (last) ---------- #}
   <form method="post" action="{% url 'core:recipes_search' %}"
         id="generate-form"
         data-tour-step="2"
         data-tour-text="Pick what you want to cook & click Search / Generate to see recipes.">
     {% csrf_token %}
 
+    <h2 class="h6 fw-semibold mb-2">Your Pantry</h2>
+
     <div class="d-flex justify-content-end align-items-center mb-2 small text-muted">
       <div class="form-check">
-        <input id="select-all" class="form-check-input" type="checkbox">
+        <input id="select-all" class="form-check-input" type="checkbox" {% if not ingredients %}disabled{% endif %}>
         <label for="select-all" class="form-check-label">Select all</label>
       </div>
     </div>
@@ -76,110 +157,43 @@
       </table>
     </div>
 
+    {# Generate section LAST #}
     <div class="card mb-4 shadow-sm">
       <div class="card-body">
         <h2 class="h6 mb-3">Recipe type</h2>
         <div class="row g-2 align-items-center">
           <div class="col-auto">
-            <select class="form-select" name="type" style="min-width: 140px;">
+            <select class="form-select" name="type" style="min-width: 140px;" {% if not ingredients %}disabled{% endif %}>
               <option value="food" selected>Food</option>
               <option value="drink">Drink</option>
             </select>
           </div>
           <div class="col-auto">
-            <button class="btn btn-success">
-              <i class="bi bi-search me-1"></i>Search / Generate recipes
-            </button>
+            {% if ingredients %}
+              <button class="btn btn-success">
+                <i class="bi bi-search me-1"></i>Search / Generate recipes
+              </button>
+            {% else %}
+              <button class="btn btn-secondary" disabled>
+                <i class="bi bi-search me-1"></i>Search / Generate recipes
+              </button>
+            {% endif %}
           </div>
         </div>
-        <div class="text-muted small mt-2">
-          Tip: tick ingredients above to use only those; leave unticked items out of generation.
-        </div>
+
+        {% if not ingredients %}
+          <div class="text-muted small mt-2">
+            Please add <strong>at least one ingredient</strong> to your pantry to enable recipe generation.
+          </div>
+        {% else %}
+          <div class="text-muted small mt-2">
+            Tip: tick ingredients above to use only those; leave unticked items out of generation.
+          </div>
+        {% endif %}
       </div>
     </div>
   </form>
 
-  --------------------------------------------------------------------------
-     ADD INGREDIENTS — manual entry + photo upload
-  --------------------------------------------------------------------------
-  <div class="card shadow-sm"
-       id="add-ingredients-card"
-       data-tour-step="3"
-       data-tour-text="Add ingredients manually or upload a photo. On mobile, use your camera to snap items.">
-    <div class="card-header bg-white">
-      <h2 class="h6 mb-0">Add ingredients</h2>
-    </div>
-    <div class="card-body">
-
-      {# 1) MANUAL ADD — independent form so required fields apply only here #}
-      <form method="post" action="{% url 'core:add_ingredient' %}" class="mb-4">
-        {% csrf_token %}
-        <div class="row g-2 align-items-center">
-          <div class="col-lg-5">
-            <label class="form-label small text-muted">Name</label>
-            <input type="text" name="name" class="form-control" placeholder="e.g. bell pepper" required>
-          </div>
-          <div class="col-lg-3">
-            <label class="form-label small text-muted">Quantity</label>
-            <input type="text" name="quantity" class="form-control" placeholder="e.g. 2 or 200">
-          </div>
-          <div class="col-lg-2">
-            <label class="form-label small text-muted">Unit</label>
-            <input type="text" name="unit" class="form-control" placeholder="e.g. g, pcs">
-          </div>
-          <div class="col-lg-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100">
-              <i class="bi bi-plus-lg me-1"></i>Add
-            </button>
-          </div>
-        </div>
-      </form>
-
-      <hr class="my-3">
-
-       2) PHOTO UPLOAD → REVIEW — independent form (legacy path still supported)
-      <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data" id="pantry-photo-form">
-        {% csrf_token %}
-
-        <label for="upload" class="form-label small text-muted">Upload photo of ingredients (or scan):</label>
-        <div class="input-group">
-          {# IMPORTANT: name must be 'upload' to match request.FILES['upload'] in the view #}
-          <input
-            type="file"
-            name="upload"
-            id="upload"
-            accept="image/*"
-            capture="environment"
-            class="form-control"
-            aria-label="Upload a photo of your ingredients"
-            required
-          >
-          <button class="btn btn-outline-secondary" type="button" id="scan-btn">Scan with camera</button>
-          <button class="btn btn-primary" type="submit" id="upload-submit">
-            Upload &amp; Review
-          </button>
-        </div>
-        <div class="form-text">
-          Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.
-        </div>
-
-        {# Progress UI for direct-to-S3 — shown by JS #}
-        <div id="upload-progress" class="mt-2 d-none">
-          <div class="progress" role="progressbar" aria-label="Upload progress">
-            <div class="progress-bar" style="width: 0%">0%</div>
-          </div>
-          <small class="text-muted" id="upload-status">Preparing…</small>
-        </div>
-      </form>
-
-      {# Hidden hand-off form used after S3 upload succeeds #}
-      <form id="start-extract-form" method="post" action="{% url 'core:pantry_extract_start' %}" class="d-none">
-        {% csrf_token %}
-        <input type="hidden" name="s3_key" id="s3_key">
-      </form>
-
-    </div>
-  </div>
 </div>
 {% endblock %}
 
@@ -187,6 +201,16 @@
   {{ block.super }}
   <script src="{% static 'js/tour.js' %}" defer></script>
   <script src="{% static 'js/dashboard.js' %}" defer></script>
-  {# Intercepts Upload & Review to do a presigned POST to S3, then submits start-extract-form #}
   <script src="{% static 'js/direct_s3_upload.v2.js' %}" defer></script>
+  <script>
+    // Minor UX: "Select all" checkbox toggles item checkboxes (when enabled)
+    document.addEventListener('DOMContentLoaded', function () {
+      const selectAll = document.getElementById('select-all');
+      if (selectAll && !selectAll.disabled) {
+        selectAll.addEventListener('change', () => {
+          document.querySelectorAll('.ing-check').forEach(cb => cb.checked = selectAll.checked);
+        });
+      }
+    });
+  </script>
 {% endblock %}
