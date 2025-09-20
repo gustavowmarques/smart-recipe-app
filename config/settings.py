@@ -80,11 +80,11 @@ INSTALLED_APPS = [
 
     # third-party
     "rest_framework",
-    "storages", 
+    "storages",
 
     # local
     "core",
-    "accounts", 
+    "accounts",
 ]
 
 # ---------------------------------------------------------------------
@@ -223,4 +223,3 @@ LOGOUT_REDIRECT_URL = "core:home"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 ENABLE_AI_IMAGES = os.getenv("ENABLE_AI_IMAGES", "false").lower() in ("1", "true", "yes")
-

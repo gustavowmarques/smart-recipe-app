@@ -90,7 +90,7 @@ class SavedRecipe(models.Model):
     external_id = models.CharField(max_length=64, blank=True)
 
     title = models.CharField(max_length=200)
-    image_url = models.URLField(blank=True, null=True) 
+    image_url = models.URLField(blank=True, null=True)
 
     ingredients_json = models.JSONField(default=list, blank=True)
     steps_json = models.JSONField(default=list, blank=True)

@@ -132,5 +132,3 @@ class MealAddForm(forms.Form):
                 ("dinner", "Dinner"),
                 ("snack", "Snack"),
             ]
-
-
