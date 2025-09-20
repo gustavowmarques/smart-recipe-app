@@ -1462,7 +1462,6 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     If it's an AI recipe and it has no image yet, fetch a representative image
     (Spoonacular) and optionally cache it to our storage (S3/local).
     """
-    # Accept both param names for compatibility
     key = rid if rid is not None else recipe_id
 
     recipe = _get_session_recipe(source, key, request)
@@ -1474,20 +1473,12 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
         if source == "ai" and not (recipe.get("image_url") or recipe.get("image")):
             title = (recipe.get("title") or recipe.get("name") or "").strip()
             if title:
-                # 1) Ask Spoonacular for a representative photo URL
                 remote_url = spoonacular_image_for(title)
-
-                # 2) Optionally copy that image into our storage (S3/local)
-                #    Comment the next two lines if you'd rather hot-link
                 cached_url = cache_remote_image_to_storage(remote_url) if remote_url else None
                 final_url = cached_url or remote_url
-
                 if final_url:
-                    # Attach to the recipe payload being rendered now
                     recipe["image_url"] = final_url
                     recipe["image"] = final_url
-
-                    # Also push it back into the session so it persists
                     bundle = request.session.get("recipe_results") or {}
                     for list_name in ("combined", "ai"):
                         lst = bundle.get(list_name) or []
@@ -1498,10 +1489,154 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                     request.session["recipe_results"] = bundle
                     request.session.modified = True
     except Exception:
-        # Never break the page because of an image fetch
         logger.exception("Failed to attach fallback image for AI recipe.")
 
-    return render(request, "core/recipe_detail.html", {"recipe": recipe, "source": source})
+    recipe = recipe or {}
+    meta = recipe.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    # ---- Instructions: primary path from analyzedInstructions ----
+    ai = recipe.get("analyzedInstructions") or meta.get("analyzedInstructions") or []
+    steps_list: list[str] = []
+    if isinstance(ai, list) and ai:
+        block0 = ai[0] or {}
+        raw_steps = block0.get("steps") or []
+        steps_list = [s.get("step") for s in raw_steps if isinstance(s, dict) and s.get("step")]
+
+    # ----- EXTRA FALLBACKS FOR INSTRUCTIONS -----
+    if not steps_list:
+        alt = (
+            recipe.get("steps")
+            or recipe.get("method")
+            or recipe.get("directions")
+            or recipe.get("procedure")
+            or meta.get("instructions")
+            or recipe.get("instructions")
+        )
+        if isinstance(alt, list):
+            steps_list = [s for s in alt if isinstance(s, str) and s.strip()]
+        elif isinstance(alt, str):
+            raw = [p.strip() for p in alt.replace("\r", "").split("\n") if p.strip()]
+            if not raw:
+                raw = [p.strip() for p in alt.split(". ") if p.strip()]
+            steps_list = raw
+
+    # Last resort: if still empty but we have a sourceUrl, show a helpful step.
+    if not steps_list and (recipe.get("url") or meta.get("sourceUrl")):
+        steps_list = ["Open the source link for full step-by-step instructions."]
+
+    # --- Heuristic instructions for AI recipes (when nothing else exists) ---
+    if not steps_list and source == "ai":
+        title_l = (recipe.get("title") or "").lower()
+
+        def make(o):  # tiny helper to avoid empty strings
+            return [s for s in o if s and s.strip()]
+
+        if "smoothie" in title_l or "shake" in title_l:
+            steps_list = make([
+                "Add all ingredients to a blender.",
+                "Blend until completely smooth.",
+                "Taste and adjust sweetness or thickness as desired.",
+                "Pour into a glass and serve immediately."
+            ])
+        elif "oatmeal" in title_l or "overnight oats" in title_l:
+            steps_list = make([
+                "Cook oats according to package directions (water or milk).",
+                "Stir in the remaining ingredients.",
+                "Simmer 1–2 minutes to warm through (optional).",
+                "Serve warm and top as desired."
+            ])
+        elif "toast" in title_l or "sandwich" in title_l:
+            steps_list = make([
+                "Toast the bread to your liking.",
+                "Spread almond butter evenly on the toast.",
+                "Top with sliced banana; drizzle honey if using.",
+                "Serve immediately."
+            ])
+        elif "salad" in title_l or "bowl" in title_l:
+            steps_list = make([
+                "Chop or prep all ingredients as needed.",
+                "Combine in a bowl.",
+                "Dress, season with salt and pepper, and toss to coat.",
+                "Serve."
+            ])
+        elif "energy ball" in title_l or "balls" in title_l or "bites" in title_l:
+            steps_list = make([
+                "In a bowl, stir all ingredients until evenly combined.",
+                "Chill the mixture for 15–20 minutes to firm up.",
+                "Roll into bite-size balls.",
+                "Refrigerate in an airtight container."
+            ])
+        else:
+            # Generic catch-all for simple AI recipes
+            steps_list = make([
+                "Prep ingredients (wash, peel, chop as needed).",
+                "Combine and season to taste.",
+                "Cook or chill if appropriate.",
+                "Serve."
+            ])
+
+
+    # ---- Ingredients (explicit lists or derive from step-ingredients) ----
+    explicit_ings = (
+        recipe.get("ingredients")
+        or recipe.get("extendedIngredients")
+        or meta.get("extendedIngredients")
+        or []
+    )
+
+    display_ingredients: list[str] = []
+    if explicit_ings:
+        for i in explicit_ings:
+            if isinstance(i, dict) and i.get("original"):
+                display_ingredients.append(i["original"])
+            elif isinstance(i, dict):
+                name = i.get("name") or ""
+                amt = i.get("amount")
+                unit = i.get("unit")
+                if name and (amt or unit):
+                    display_ingredients.append(f"{amt or ''} {unit or ''} {name}".strip())
+                elif name:
+                    display_ingredients.append(name)
+            elif isinstance(i, str):
+                display_ingredients.append(i)
+    else:
+        names, seen = [], set()
+        for s in (ai[0].get("steps") if isinstance(ai, list) and ai else []) or []:
+            for ing in s.get("ingredients", []):
+                nm = (
+                    ing.get("original")
+                    or ing.get("originalName")
+                    or ing.get("localizedName")
+                    or ing.get("name")
+                    or ""
+                ).strip()
+                key_nm = nm.lower()
+                if nm and key_nm not in seen:
+                    seen.add(key_nm)
+                    names.append(nm)
+        display_ingredients = names
+
+    # ---- Normalize a few fields for the template ----
+    normalized = {
+        **recipe,
+        "title": recipe.get("title") or meta.get("title"),
+        "image": recipe.get("image_url") or recipe.get("image") or meta.get("image"),
+        "readyInMinutes": recipe.get("readyInMinutes") or meta.get("readyInMinutes"),
+        "servings": recipe.get("servings") or meta.get("servings"),
+        "sourceUrl": recipe.get("url") or meta.get("sourceUrl"),
+        "summary": recipe.get("summary") or meta.get("summary"),
+    }
+
+    context = {
+        "recipe": normalized,
+        "display_steps": steps_list,
+        "display_ingredients": display_ingredients,
+        "source": source,
+    }
+    logger.info("DETAIL DEBUG: steps=%s ings=%s", len(steps_list), len(display_ingredients))
+    return render(request, "core/recipe_detail.html", context)
 
 
 @login_required

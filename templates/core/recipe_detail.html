@@ -1,3 +1,4 @@
+{# core/recipe_detail.html #}
 {% extends "core/base.html" %}
 {% load static %}
 
@@ -5,171 +6,52 @@
 
 {% block content %}
 <div class="container my-4">
+  <a href="javascript:history.back()" class="btn btn-link p-0">&larr; Back</a>
 
-  <!-- Back + Actions -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <a href="javascript:history.back()" class="btn btn-link p-0">&larr; Back</a>
+  <h2 class="mt-2 mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
-    <div class="d-flex gap-2">
-      {% if recipe.url %}
-        <a class="btn btn-outline-secondary btn-sm" href="{{ recipe.url }}" target="_blank" rel="noopener">
-          Source
-        </a>
-      {% endif %}
-
-      {# DB-backed favorite: show Edit/Delete (favorite_pk should be provided by favorite_detail view) #}
-      {% if favorite_pk %}
-        <a href="{% url 'recipe_update' favorite_pk %}" class="btn btn-outline-primary btn-sm">Edit</a>
-        <form action="{% url 'recipe_delete' favorite_pk %}" method="post" class="d-inline">
-          {% csrf_token %}
-          <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete this recipe?')">Delete</button>
-        </form>
-
-      {# Session-backed AI/Web: allow saving to favorites #}
-      {% else %}
-        {% if already_saved %}
-          <span class="badge text-bg-success align-self-center">Saved ✓</span>
-        {% else %}
-          <form method="post" action="{% url 'core:save_favorite' source recipe.id %}" class="d-inline">
-            {% csrf_token %}
-            <button class="btn btn-outline-primary">
-              <i class="bi bi-heart"></i> Save to Favorites
-            </button>
-          </form>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Title -->
-  <h2 class="mb-3">{{ recipe.title|default:"Recipe" }}</h2>
-
-  <!-- Image (prefer image_url; fallback to image; else placeholder) -->
-  <div class="mb-4">
-    {% if recipe.image_url %}
-      <img src="{{ recipe.image_url }}" alt="{{ recipe.title|default:'Recipe' }}" class="img-fluid rounded shadow-sm">
-    {% elif recipe.image %}
-      <img src="{{ recipe.image }}" alt="{{ recipe.title|default:'Recipe' }}" class="img-fluid rounded shadow-sm">
-    {% else %}
-      <div class="bg-light border rounded d-flex align-items-center justify-content-center" style="height: 360px;">
-        <div class="text-center">
-          <img src="{% static 'img/plate-placeholder.svg' %}" alt="" style="width:72px;height:72px;opacity:.35;">
-          <div class="mt-3 text-muted">
-            Recipe image coming soon<br><small>Add a photo or enable AI images</small>
-          </div>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-
-  <!-- Meta (cook time, servings) -->
-  <div class="text-muted mb-4 small">
-    {% if recipe.cook_time_minutes %}⏱ {{ recipe.cook_time_minutes }} min{% endif %}
-    {% if recipe.readyInMinutes %}
-      {% if recipe.cook_time_minutes %}&nbsp;·&nbsp;{% endif %}⏱ {{ recipe.readyInMinutes }} min
-    {% endif %}
-    {% if recipe.servings %}&nbsp;·&nbsp;👥 {{ recipe.servings }} servings{% endif %}
-  </div>
-
-  <!-- Tags (AI) -->
-  {% if recipe.tags %}
-    <div class="mb-4">
-      {% for t in recipe.tags %}
-        <span class="badge rounded-pill text-bg-light border me-1">{{ t }}</span>
-      {% endfor %}
-    </div>
+  {% if recipe.image %}
+    <img src="{{ recipe.image }}" alt="{{ recipe.title }}" class="img-fluid rounded shadow-sm mb-4">
   {% endif %}
 
+  <div class="text-muted small mb-4">
+    {% if recipe.readyInMinutes %}⏱ {{ recipe.readyInMinutes }} min{% endif %}
+    {% if recipe.readyInMinutes and recipe.servings %}&nbsp;·&nbsp;{% endif %}
+    {% if recipe.servings %}👥 {{ recipe.servings }} servings{% endif %}
+    {% if recipe.sourceUrl %}&nbsp;·&nbsp;<a href="{{ recipe.sourceUrl }}" target="_blank" rel="noopener">Source</a>{% endif %}
+  </div>
+
   <div class="row g-4">
-    <!-- Ingredients -->
     <div class="col-12 col-lg-6">
       <h4 class="mb-2">Ingredients</h4>
       <ul class="ps-3">
-        {# Preferred unified field (AI/Web normalized): recipe.ingredients #}
-        {% if recipe.ingredients %}
-          {% for i in recipe.ingredients %}
-            <li>
-              {% if i.original %}{{ i.original }}
-              {% elif i.name and i.amount and i.unit %}{{ i.amount }} {{ i.unit }} {{ i.name }}
-              {% elif i.name %}{{ i.name }}
-              {% else %}{{ i }}{% endif %}
-            </li>
-          {% endfor %}
-
-        {# Spoonacular: extendedIngredients #}
-        {% elif recipe.extendedIngredients %}
-          {% for i in recipe.extendedIngredients %}
-            <li>
-              {% if i.original %}{{ i.original }}
-              {% elif i.name and i.amount and i.unit %}{{ i.amount }} {{ i.unit }} {{ i.name }}
-              {% elif i.name %}{{ i.name }}
-              {% else %}Ingredient{% endif %}
-            </li>
-          {% endfor %}
-
-        {# Fallback: used/missed lists as last resort #}
-        {% elif recipe.usedIngredients or recipe.missedIngredients %}
-          {% if recipe.usedIngredients %}
-            {% for i in recipe.usedIngredients %}
-              <li>{{ i }}</li>
-            {% endfor %}
-          {% endif %}
-          {% if recipe.missedIngredients %}
-            {% for i in recipe.missedIngredients %}
-              <li class="text-muted">{{ i }}</li>
-            {% endfor %}
-          {% endif %}
-
+        {% if display_ingredients %}
+          {% for line in display_ingredients %}<li>{{ line }}</li>{% endfor %}
         {% else %}
           <li class="text-muted">No ingredients provided.</li>
         {% endif %}
       </ul>
-
-      {# Show Matches / Missing chips (Web) #}
-      {% if recipe.usedIngredients or recipe.missedIngredients %}
-        <div class="mt-3">
-          {% if recipe.usedIngredients %}
-            <div class="mb-1 small">
-              <span class="text-muted">Matches:</span>
-              {% for u in recipe.usedIngredients %}
-                <span class="badge text-bg-success-subtle border me-1">{{ u }}</span>
-              {% endfor %}
-            </div>
-          {% endif %}
-          {% if recipe.missedIngredients %}
-            <div class="small">
-              <span class="text-muted">Missing:</span>
-              {% for m in recipe.missedIngredients %}
-                <span class="badge text-bg-light border me-1">{{ m }}</span>
-              {% endfor %}
-            </div>
-          {% endif %}
-        </div>
-      {% endif %}
     </div>
 
-    <!-- Instructions -->
     <div class="col-12 col-lg-6">
       <h4 class="mb-2">Instructions</h4>
-      <ol class="ps-3">
-        {# Preferred unified list #}
-        {% if recipe.steps %}
-          {% for step in recipe.steps %}
-            <li>{{ step }}</li>
-          {% endfor %}
+        <ol class="ps-3">
+          {% if display_steps %}
+            {% for s in display_steps %}<li>{{ s }}</li>{% endfor %}
+          {% else %}
+            {% if recipe.sourceUrl %}
+              <li>Open the source link for full step-by-step instructions.</li>
+            {% else %}
+              <li class="text-muted">No instructions provided.</li>
+            {% endif %}
+          {% endif %}
+        </ol>
 
-        {# Spoonacular sometimes provides a single string #}
-        {% elif recipe.instructions %}
-          {% for s in recipe.instructions.splitlines %}
-            {% if s %}<li>{{ s }}</li>{% endif %}
-          {% endfor %}
-
-        {% else %}
-          <li class="text-muted">No instructions provided.</li>
-        {% endif %}
-      </ol>
     </div>
   </div>
 
+  {% if recipe.summary %}
+    <div class="mt-4 text-muted small">{{ recipe.summary|safe }}</div>
+  {% endif %}
 </div>
 {% endblock %}
