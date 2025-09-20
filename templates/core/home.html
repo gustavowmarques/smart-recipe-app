@@ -1,13 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
-
-{# Show navbar only for authenticated users (hide for visitors) #}
-{% block navbar %}
-  {% if user.is_authenticated %}
-    {{ block.super }}
-  {% endif %}
-{% endblock %}
-
+{% load static chunk %}
 
 {% block content %}
 {# Safe URLs up front #}
@@ -18,15 +10,123 @@
 {% url 'core:meal_plan' as plan_url %}
 {% url 'core:demo_mode' as demo_url %}
 
-<section class="container" style="max-width: 980px;">
-  <div class="text-center pt-5 pb-4">
-    <h1 class="display-6 fw-semibold">From fridge → recipe in seconds</h1>
-    <p class="text-muted mt-2">
-      Save your ingredients, get smart recipe ideas, build meal plans, and hit your targets.
-    </p>
+<div class="container my-5">
+  <div class="hero card border-0 shadow-sm overflow-hidden">
+    <div class="row g-0 align-items-center">
+      <div class="col-lg-7 p-4 p-lg-5">
+        <span class="badge bg-primary-subtle text-primary mb-2">Smart Recipe</span>
+        <h1 class="display-6 fw-bold mb-2">From fridge → recipe in seconds</h1>
+        <p class="lead text-muted mb-4">
+          Save ingredients, get smart recipe ideas, build meal plans, and hit your nutrition targets.
+        </p>
+
+        <div class="d-flex gap-2">
+          {% if user.is_authenticated %}
+            <a href="{{ dash_url }}" class="btn btn-primary btn-lg">
+              <i class="bi bi-basket2-fill me-1"></i> Open pantry
+            </a>
+            <a href="{{ fav_url }}" class="btn btn-outline-primary btn-lg">
+              <i class="bi bi-star-fill me-1"></i> View favorites
+            </a>
+          {% else %}
+            {% if register_url %}
+            <a href="{{ register_url }}" class="btn btn-primary btn-lg">
+              <i class="bi bi-person-plus-fill me-1"></i> Create account
+            </a>
+            {% endif %}
+            {% if login_url %}
+            <a href="{{ login_url }}{% if dash_url %}?next={{ dash_url }}{% endif %}"
+               class="btn btn-outline-primary btn-lg">
+              <i class="bi bi-box-arrow-in-right me-1"></i> Log in
+            </a>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="text-muted small mt-3">
+          Privacy-friendly. Nothing shared without consent.
+        </div>
+      </div>
+      <div class="col-lg-5 d-none d-lg-block">
+        <div class="hero-art h-100">
+          <div class="hero-photo hero-photo-a"
+              style="background-image:url('{% if favorites and favorites.0.image %}{{ favorites.0.image }}{% else %}{% static "img/stock/hero-1.jpg" %}{% endif %}');"></div>
+
+          <div class="hero-photo hero-photo-b"
+              style="background-image:url('{% if favorites|length > 1 and favorites.1.image %}{{ favorites.1.image }}{% else %}{% static "img/stock/hero-2.jpg" %}{% endif %}');"></div>
+
+          <div class="hero-photo hero-photo-c"
+              style="background-image:url('{% if favorites|length > 2 and favorites.2.image %}{{ favorites.2.image }}{% else %}{% static "img/stock/hero-3.jpg" %}{% endif %}');"></div>
+        </div>
+
+      </div>
+    </div>
   </div>
 
-  {# Primary actions #}
+  {# FEATURED / FAVORITES CAROUSEL (shows only if favorites provided) #}
+  {% with items=favorites %}
+  {% if items %}
+  <div class="mt-5">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h2 class="h4 mb-0">Your favorites</h2>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-target="#favCarousel" data-bs-slide="prev">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-target="#favCarousel" data-bs-slide="next">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="favCarousel" class="carousel slide" data-bs-ride="false">
+      <div class="carousel-inner">
+        {% for chunk in items|slice:":9"|chunk:3 %}
+        <div class="carousel-item {% if forloop.first %}active{% endif %}">
+          <div class="row g-3">
+            {% for r in chunk %}
+            <div class="col-md-4">
+              <a href="{{ r.view_url }}" class="recipe-card card lift h-100 text-decoration-none">
+                <div class="ratio ratio-16x9 card-img-top overflow-hidden position-relative">
+                  {% if r.image %}
+                    <img src="{{ r.image }}" class="object-fit-cover" alt="{{ r.title }}">
+                  {% else %}
+                    <div class="d-flex align-items-center justify-content-center bg-light text-muted">No image</div>
+                  {% endif %}
+                  <div class="card-img-overlay-gradient"></div>
+
+                  {# Badge overlay on image #}
+                  <span class="badge recipe-badge bg-primary-subtle text-primary">
+                    {{ r.source|default:"Recipe"|title }}
+                  </span>
+                </div>
+                <div class="card-body">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    {% if r.readyInMinutes %}
+                      <span class="badge bg-secondary-subtle text-secondary">
+                        <i class="bi bi-stopwatch"></i> {{ r.readyInMinutes }}m
+                      </span>
+                    {% endif %}
+                  </div>
+                  <h3 class="h6 text-body mb-2 line-clamp-2">{{ r.title }}</h3>
+                  <div class="text-muted small">View recipe</div>
+                </div>
+              </a>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endwith %}
+</div>
+
+<section class="container" style="max-width: 980px;">
+
+  {# Primary actions / explainer cards #}
   <div class="row g-4">
     {% if not user.is_authenticated %}
       <div class="col-md-6">
@@ -37,19 +137,13 @@
               <h5 class="card-title mb-0">Create your free account</h5>
             </div>
             <p class="card-text text-muted">
-              Start here to save your pantry, favorite recipes, and meal plans. It takes less than a minute.
+              Save your pantry, favorite recipes, and meal plans. It takes less than a minute.
             </p>
             <div class="mt-auto">
               {% if register_url %}
-                <a href="{{ register_url }}" class="btn btn-primary w-100" data-bs-toggle="tooltip"
-                   title="Create a free account to unlock all features">
-                  Create my free recipe account
-                </a>
+                <a href="{{ register_url }}" class="btn btn-primary w-100">Create my free recipe account</a>
               {% else %}
-                <a class="btn btn-primary w-100 disabled" tabindex="-1" aria-disabled="true"
-                   data-bs-toggle="tooltip" title="Registration temporarily unavailable">
-                  Create my free recipe account
-                </a>
+                <a class="btn btn-primary w-100 disabled" tabindex="-1" aria-disabled="true">Create my free recipe account</a>
               {% endif %}
             </div>
           </div>
@@ -64,27 +158,20 @@
               <h5 class="card-title mb-0">Already have an account?</h5>
             </div>
             <p class="card-text text-muted">
-              Log in to access your saved ingredients, favorites, meal plan, and nutrition targets.
+              Log in to access your saved ingredients, favorites, meal plan, and targets.
             </p>
             <div class="mt-auto">
               {% if login_url %}
                 <a href="{{ login_url }}{% if dash_url %}?next={{ dash_url }}{% endif %}"
-                   class="btn btn-outline-primary w-100" data-bs-toggle="tooltip"
-                   title="Log in to continue where you left off">
-                  Log in
-                </a>
+                   class="btn btn-outline-primary w-100">Log in</a>
               {% else %}
-                <a class="btn btn-outline-primary w-100 disabled" tabindex="-1" aria-disabled="true"
-                   data-bs-toggle="tooltip" title="Login route not configured">
-                  Log in
-                </a>
+                <a class="btn btn-outline-primary w-100 disabled" tabindex="-1" aria-disabled="true">Log in</a>
               {% endif %}
             </div>
           </div>
         </div>
       </div>
     {% else %}
-      {# When logged in, show a single CTA to the dashboard #}
       <div class="col-md-12">
         <div class="alert alert-success d-flex align-items-center" role="alert">
           <div class="me-2">✅</div>

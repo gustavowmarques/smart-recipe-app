@@ -2,6 +2,7 @@
 {% block title %}Meal Plan{% endblock %}
 
 {% block content %}
+{% now "Y-m-d" as today_str %}
 <div class="mt-3">
   <!-- Header + week navigation -->
   <div class="d-flex justify-content-between align-items-center mb-2">
@@ -30,7 +31,7 @@
 
       <tbody>
         {% for row in rows %}
-          <tr>
+          <tr class="{% if row.date|date:'Y-m-d' == today_str %}tr-today{% endif %}">
             <td class="text-nowrap">{{ row.date }} ({{ row.date|date:"D" }})</td>
 
             {% for m in row.cells %}

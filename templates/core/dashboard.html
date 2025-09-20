@@ -18,25 +18,31 @@
     </div>
   {% endfor %}
 
-  {# ---------- friendly intro / guidance ---------- #}
+  {# ---------- friendly intro / guidance (hero) ---------- #}
   {% with has_items=ingredients|length %}
-  <div class="card border-0 shadow-sm mb-4">
+  <div class="card dashboard-hero mb-3">
     <div class="card-body">
-      <h1 class="h4 fw-semibold mb-2">Welcome!</h1>
+      <h1 class="h4 fw-semibold mb-2">
+        <i class="bi bi-basket me-2"></i>Welcome!
+      </h1>
       <p class="text-muted mb-3">
         This is your pantry. Add ingredients to get tailored recipes you can actually make.
       </p>
-      <ul class="mb-0">
-        <li><strong>Step 1:</strong> <em>Add to Pantry</em> — type items below or upload a photo.</li>
-        <li><strong>Step 2:</strong> Pick any pantry items you want to use and click <em>Search / Generate recipes</em>.</li>
+      <ul class="li-icon mb-0">
+        <li>
+          <i class="bi bi-1-circle"></i>
+          <div><strong>Add to Pantry</strong> — type items below or upload a photo.</div>
+        </li>
+        <li>
+          <i class="bi bi-2-circle"></i>
+          <div><strong>Generate recipes</strong> using the checked items above (leave all unchecked to use everything).</div>
+        </li>
       </ul>
 
       {% if not has_items %}
         <div class="alert alert-info d-flex align-items-start gap-2 mt-3 mb-0">
           <i class="bi bi-info-circle"></i>
-          <div>
-            Your pantry is empty — add your first ingredient below to get started.
-          </div>
+          <div>Your pantry is empty — add your first ingredient below to get started.</div>
         </div>
       {% endif %}
     </div>
@@ -44,7 +50,7 @@
   {% endwith %}
 
   {# ---------- ADD INGREDIENTS (first) ---------- #}
-  <div class="card shadow-sm mb-4"
+  <div class="card shadow-sm mb-3"
        id="add-ingredients-card"
        data-tour-step="1"
        data-tour-text="Add ingredients manually or upload a photo. On mobile, use your camera to snap items.">
@@ -91,6 +97,10 @@
           <button class="btn btn-primary" type="submit" id="upload-submit">Upload &amp; Review</button>
         </div>
         <div class="form-text">Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.</div>
+
+        <div class="ratio ratio-16x9 rounded border d-none mt-3" id="upload-preview">
+          <img alt="Preview" class="rounded w-100 h-100 object-fit-cover" id="upload-preview-img">
+        </div>
 
         <div id="upload-progress" class="mt-2 d-none">
           <div class="progress" role="progressbar" aria-label="Upload progress">
@@ -150,7 +160,13 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" class="text-muted py-4 text-center">No ingredients yet.</td>
+            <td colspan="5">
+              <div class="empty text-center">
+                <div class="mb-2"><i class="bi bi-emoji-smile" style="font-size:2rem;"></i></div>
+                <div class="fw-semibold">Your pantry is empty</div>
+                <div class="text-muted">Add your first ingredient below to get recipe ideas.</div>
+              </div>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -158,7 +174,7 @@
     </div>
 
     {# Generate section LAST #}
-    <div class="card mb-4 shadow-sm">
+    <div class="card mb-3 shadow-sm">
       <div class="card-body">
         <h2 class="h6 mb-3">Recipe type</h2>
         <div class="row g-2 align-items-center">
@@ -170,8 +186,9 @@
           </div>
           <div class="col-auto">
             {% if ingredients %}
-              <button class="btn btn-success">
-                <i class="bi bi-search me-1"></i>Search / Generate recipes
+              <button class="btn btn-success"
+                      data-bs-toggle="tooltip" data-bs-title="Use the checked pantry items">
+                <i class="bi bi-magic me-1"></i>Search / Generate recipes
               </button>
             {% else %}
               <button class="btn btn-secondary" disabled>
@@ -202,15 +219,4 @@
   <script src="{% static 'js/tour.js' %}" defer></script>
   <script src="{% static 'js/dashboard.js' %}" defer></script>
   <script src="{% static 'js/direct_s3_upload.v2.js' %}" defer></script>
-  <script>
-    // Minor UX: "Select all" checkbox toggles item checkboxes (when enabled)
-    document.addEventListener('DOMContentLoaded', function () {
-      const selectAll = document.getElementById('select-all');
-      if (selectAll && !selectAll.disabled) {
-        selectAll.addEventListener('change', () => {
-          document.querySelectorAll('.ing-check').forEach(cb => cb.checked = selectAll.checked);
-        });
-      }
-    });
-  </script>
 {% endblock %}

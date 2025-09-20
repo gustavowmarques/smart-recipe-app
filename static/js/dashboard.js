@@ -19,3 +19,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 });
+
+// Image preview for "Upload photo of ingredients"
+document.addEventListener('DOMContentLoaded', () => {
+  const file = document.getElementById('upload');
+  const wrap = document.getElementById('upload-preview');
+  const img  = document.getElementById('upload-preview-img');
+
+  if (!file || !wrap || !img) return;
+
+  let currentURL = null;
+
+  const hidePreview = () => {
+    if (currentURL) URL.revokeObjectURL(currentURL);
+    currentURL = null;
+    img.removeAttribute('src');
+    wrap.classList.add('d-none');
+  };
+
+  file.addEventListener('change', () => {
+    const f = file.files && file.files[0];
+    if (!f || !/^image\//.test(f.type)) {
+      hidePreview();
+      return;
+    }
+    if (currentURL) URL.revokeObjectURL(currentURL);
+    currentURL = URL.createObjectURL(f);
+    img.src = currentURL;
+    wrap.classList.remove('d-none');
+  });
+
+  const form = document.getElementById('pantry-photo-form');
+  if (form) form.addEventListener('reset', hidePreview);
+});

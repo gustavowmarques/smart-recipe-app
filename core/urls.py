@@ -25,12 +25,12 @@ urlpatterns = [
     path("web/recipes/", views.web_recipes, name="web_recipes"),
 
     # Session-backed detail pages (now accept slug OR digits)
-    path("ai/recipes/<slug:recipe_id>/", views.recipe_detail, {"source": "ai"}, name="recipe_detail_ai"),
-    path("web/recipes/<slug:recipe_id>/", views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
+    path("ai/recipes/<str:recipe_id>/", views.recipe_detail, {"source": "ai"}, name="recipe_detail_ai"),
+    path("web/recipes/<str:recipe_id>/", views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
 
 
     # accepts both AI slugs and numeric web IDs
-    path("<str:source>/recipes/<slug:recipe_id>/save/", views.save_favorite, name="save_favorite"),
+    path("<str:source>/recipes/<str:recipe_id>/save/", views.save_favorite, name="save_favorite"),
 
     # Favorites (DB-backed)
     path("favorites/", views.favorites_list, name="favorites"),

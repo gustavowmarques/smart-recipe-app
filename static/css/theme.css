@@ -1,0 +1,160 @@
+/* Global theme tweaks (Bootstrap 5) */
+:root{
+  /* brand */
+  --bs-primary: #2563EB;       /* indigo-500 */
+  --bs-success: #16a34a;       /* green-600 */
+  --bs-danger:  #E11D48;
+  --bs-accent: #10B981;
+  --bs-surface: #F6F7FB;
+
+  /* typography & radii */
+  --bs-body-font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --bs-border-radius: .75rem;          /* cards/buttons a bit rounder */
+  --bs-border-radius-lg: 1rem;
+  --bs-box-shadow-sm: 0 2px 8px rgba(0,0,0,.06);
+  --bs-box-shadow:    0 8px 30px rgba(0,0,0,.07);
+
+  /* subtle gray background */
+  --page-bg: #f6f7fb;
+}
+
+body { background: var(--page-bg); }
+
+
+.recipe-badge { position:absolute; top:.5rem; left:.5rem; z-index: 2; }
+
+.tr-today { background: rgba(37,99,235,.06); }
+@media (prefers-color-scheme: dark){
+  .tr-today { background: rgba(37,99,235,.12); }
+}
+
+.skeleton{ background: linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%); background-size: 400% 100%; animation: sk 1.2s ease-in-out infinite; }
+@keyframes sk { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
+.skeleton.card{ height: 260px; border-radius: var(--bs-border-radius); }
+
+
+/* Cards */
+.card { border: 0; box-shadow: var(--bs-box-shadow-sm); }
+.card-header { border-bottom: 0; }
+
+/* Buttons: slightly bolder */
+.btn { font-weight: 600; }
+
+/* Section titles */
+h1,h2,h3,h4 { letter-spacing: .1px; }
+
+/* “Hero” strip (home/dashboard top) */
+.dashboard-hero {
+  background: linear-gradient(135deg, rgba(37,99,235,.10), rgba(16,185,129,.08));
+  border: 1px solid rgba(37,99,235,.12);
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+/* ===== Hero (home) ===== */
+.hero{
+  background: linear-gradient(135deg, rgba(37,99,235,.08), rgba(16,185,129,.08));
+  border: 1px solid rgba(37,99,235,.12);
+}
+.hero-art{
+  position: relative;
+  min-height: 260px;               /* ensures room for the stack */
+  pointer-events: none;            /* images don’t intercept clicks */
+}
+.hero-photo{
+  position: absolute;
+  background-size: cover;
+  background-position: center;
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  outline: 4px solid rgba(255,255,255,.85);  /* white frame for separation */
+}
+
+/* Back (largest) */
+.hero-photo-a{
+  width: 58%;
+  aspect-ratio: 16 / 10;
+  right: 12%;
+  top: 18%;
+  z-index: 1;
+}
+/* Middle */
+.hero-photo-b{
+  width: 44%;
+  aspect-ratio: 16 / 11;
+  right: 2%;
+  top: 34%;
+  z-index: 2;
+}
+/* Front (smallest) */
+.hero-photo-c{
+  width: 24%;
+  aspect-ratio: 1 / 1;
+  right: 26%;
+  top: 50%;
+  z-index: 3;
+}
+
+/* Hide decorative photos on smaller screens */
+@media (max-width: 1200px){
+  .hero-art{ display:none; }
+}
+
+/* Card lift + image overlay */
+.lift { transition: transform .2s ease, box-shadow .2s ease; }
+.lift:hover { transform: translateY(-4px); box-shadow: var(--bs-box-shadow); }
+
+.card-img-overlay-gradient{
+  position:absolute;
+  inset:0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.28));
+}
+
+/* Utilities */
+.line-clamp-2{
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.object-fit-cover{ object-fit:cover; }
+
+/* Empty states */
+.empty {
+  border: 1px dashed rgba(0,0,0,.15);
+  background: #fff;
+  border-radius: var(--bs-border-radius);
+  padding: 1rem .75rem;
+}
+
+/* Table polish */
+.table > :not(caption) > * > * { padding-top: .9rem; padding-bottom: .9rem; }
+.table thead th { font-weight: 600; }
+
+/* Hover affordances */
+tr:hover td { background: rgba(37,99,235,.03); }
+
+/* Small helper for icon bullets */
+.li-icon { list-style: none; padding-left: 0; }
+.li-icon li { display:flex; gap:.5rem; align-items:flex-start; margin:.25rem 0; }
+.li-icon li i { color: var(--bs-primary); margin-top:.2rem; }
+
+@media (prefers-color-scheme: dark) {
+  :root{
+    --page-bg: #0f1115;
+    --bs-body-color: #e7e9ee;
+    --bs-body-bg: var(--page-bg);
+  }
+  .card, .table, .empty { background:#151924; color:#e7e9ee; }
+  .table thead { background: #111422; }
+  tr:hover td { background: rgba(37,99,235,.09); }
+
+  /* Dark hero tweaks */
+  .hero{
+    background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(16,185,129,.14));
+    border-color: rgba(37,99,235,.20);
+  }
+  .hero-photo{ border-color: #0f1115; }
+  .card-img-overlay-gradient{
+    background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.40));
+  }
+}
