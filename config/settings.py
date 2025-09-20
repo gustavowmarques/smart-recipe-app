@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # BASE & ENV
 # ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv()  # loads .env from project root
+load_dotenv(BASE_DIR / ".env")  # loads .env from project root
 
 # ---------------------------------------------------------------------
 # OPENAI
@@ -173,25 +173,27 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# --- Use S3 for MEDIA in production (or whenever env vars are set) ---
-USE_S3 = (not DEBUG) and bool(os.getenv("smart-recipe-media-prod"))
+# Toggle S3
+USE_S3 = (os.getenv("USE_S3", "0") == "1") or ((not DEBUG) and bool(os.getenv("AWS_STORAGE_BUCKET_NAME")))
 
 if USE_S3:
+    INSTALLED_APPS += ["storages"]
+
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")     # e.g. "eu-north-1"
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-wershell
 
     AWS_QUERYSTRING_AUTH = False      # public, cacheable URLs
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
-    # Optional, helps in some setups:
+    # Optional helpers:
     # AWS_S3_ADDRESSING_STYLE = "virtual"
+    # AWS_S3_SIGNATURE_VERSION = "s3v4"
 
-    # Public S3 URL for media files
+    # Public S3 base URL for media
     MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
 
 # ---------------------------------------------------------------------

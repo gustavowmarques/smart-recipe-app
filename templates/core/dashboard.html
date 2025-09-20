@@ -1,31 +1,35 @@
 {% extends "core/base.html" %}
 {% load static %}
 {% block title %}Dashboard{% endblock %}
-{% block body_attrs %}data-enable-tour="1"{% endblock %}
+{% block body_attrs %}
+  data-enable-tour="1"
+  data-presign-url="{% url 'core:presign_s3_upload' %}"
+{% endblock %}
+
 
 {% block content %}
 <div class="container my-4">
 
   {# flash messages #}
   {% for message in messages %}
-    <div class="alert alert-{{ message.tags }}">
+    <div class="alert alert-{{ message.tags }} shadow-sm">
       {% if message.tags == 'success' %}<i class="bi bi-check-circle me-1"></i>{% endif %}
       {{ message }}
     </div>
   {% endfor %}
 
   {# Tour step 1: Pantry header #}
-  <h1 class="h5 mb-3"
+  <h1 class="h4 fw-semibold mb-3"
       data-tour-step="1"
       data-tour-text="This is your Pantry. Add items here to get tailored recipes.">
     Your Pantry
   </h1>
 
-  {# --------------------------------------------------------------------------
+  <!-- {# --------------------------------------------------------------------------
      PANTRY TABLE + RECIPE SEARCH/GENERATE
      This single form sends any checked ingredient IDs as `selected`
      along with the chosen type to core:recipes_search
-     -------------------------------------------------------------------------- #}
+     -------------------------------------------------------------------------- #} -->
   <form method="post" action="{% url 'core:recipes_search' %}"
         id="generate-form"
         data-tour-step="2"
@@ -83,7 +87,9 @@
             </select>
           </div>
           <div class="col-auto">
-            <button class="btn btn-success">Search / Generate recipes</button>
+            <button class="btn btn-success">
+              <i class="bi bi-search me-1"></i>Search / Generate recipes
+            </button>
           </div>
         </div>
         <div class="text-muted small mt-2">
@@ -93,9 +99,9 @@
     </div>
   </form>
 
-  {# --------------------------------------------------------------------------
+  <!-- --------------------------------------------------------------------------
      ADD INGREDIENTS — manual entry + photo upload
-     -------------------------------------------------------------------------- #}
+  -------------------------------------------------------------------------- -->
   <div class="card shadow-sm"
        id="add-ingredients-card"
        data-tour-step="3"
@@ -131,16 +137,16 @@
 
       <hr class="my-3">
 
-      {# 2) PHOTO UPLOAD → REVIEW — independent form #}
+       <!-- 2) PHOTO UPLOAD → REVIEW — independent form (legacy path still supported) -->
       <form class="mt-3" method="post" action="{% url 'core:pantry_extract_start' %}" enctype="multipart/form-data" id="pantry-photo-form">
         {% csrf_token %}
 
         <label for="upload" class="form-label small text-muted">Upload photo of ingredients (or scan):</label>
         <div class="input-group">
-          {# ⚠️ Keep 'name' aligned with your view; change to 'upload' only if your view expects that #}
+          {# IMPORTANT: name must be 'upload' to match request.FILES['upload'] in the view #}
           <input
             type="file"
-            name="image"
+            name="upload"
             id="upload"
             accept="image/*"
             capture="environment"
@@ -149,14 +155,29 @@
             required
           >
           <button class="btn btn-outline-secondary" type="button" id="scan-btn">Scan with camera</button>
-          <button class="btn btn-primary" type="submit">Upload &amp; Review</button>
+          <button class="btn btn-primary" type="submit" id="upload-submit">
+            Upload &amp; Review
+          </button>
         </div>
-
         <div class="form-text">
           Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.
         </div>
-        <small class="text-muted">Tip: on mobile, use the camera to snap your ingredients.</small>
+
+        {# Progress UI for direct-to-S3 — shown by JS #}
+        <div id="upload-progress" class="mt-2 d-none">
+          <div class="progress" role="progressbar" aria-label="Upload progress">
+            <div class="progress-bar" style="width: 0%">0%</div>
+          </div>
+          <small class="text-muted" id="upload-status">Preparing…</small>
+        </div>
       </form>
+
+      {# Hidden hand-off form used after S3 upload succeeds #}
+      <form id="start-extract-form" method="post" action="{% url 'core:pantry_extract_start' %}" class="d-none">
+        {% csrf_token %}
+        <input type="hidden" name="s3_key" id="s3_key">
+      </form>
+
     </div>
   </div>
 </div>
@@ -166,4 +187,6 @@
   {{ block.super }}
   <script src="{% static 'js/tour.js' %}" defer></script>
   <script src="{% static 'js/dashboard.js' %}" defer></script>
+  {# Intercepts Upload & Review to do a presigned POST to S3, then submits start-extract-form #}
+  <script src="{% static 'js/direct_s3_upload.v2.js' %}" defer></script>
 {% endblock %}

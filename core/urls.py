@@ -61,4 +61,6 @@ urlpatterns = [
 
     # Used by the dashboard "Upload & Review" form
     path("pantry/upload-to-review/", views.pantry_extract_start, name="pantry_upload_to_review"),
+
+    path("api/s3/presign-upload/", views.presign_s3_upload, name="presign_s3_upload"),
 ]

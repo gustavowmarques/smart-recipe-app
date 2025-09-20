@@ -6,6 +6,9 @@ import base64
 import mimetypes
 import logging
 import datetime as dt
+from uuid import uuid4
+from pathlib import Path
+import boto3
 from typing import Optional, List
 from decimal import Decimal, InvalidOperation
 
@@ -27,11 +30,13 @@ from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction, IntegrityError
-from django.http import Http404, HttpResponseBadRequest
+from django.http import JsonResponse, Http404, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.csrf import csrf_protect
+from django.core.files.storage import default_storage
 
 # ---- App models & forms ------------------------------------------------------
 from .models import (
@@ -699,25 +704,118 @@ def delete_ingredient(request, pk: int):
 
 @login_required
 @require_http_methods(["POST"])
+def presign_s3_upload(request):
+    """
+    Return a JSON payload for browser direct-to-S3 POST uploads:
+
+      { "url": "<https://bucket.s3.region.amazonaws.com/>",
+        "fields": { ...policy / signature fields... },
+        "key": "pantry_uploads/<guid>.ext" }
+
+    Notes:
+    - Works in dev and prod as long as BUCKET + REGION + valid AWS creds
+      are available (via env vars, AWS CLI profile, or instance role).
+    - Sends a clear JSON error if configuration/credentials are missing.
+    """
+
+    # ---- 1) Parse client payload (filename + content type) ----
+    try:
+        payload = json.loads(request.body.decode() or "{}")
+    except Exception:
+        payload = {}
+
+    filename     = (payload.get("filename") or "upload.jpg").strip()
+    content_type = (payload.get("content_type") or "image/jpeg").strip()
+
+    # Normalize extension; default to ".jpg" if client sent none
+    ext = Path(filename).suffix.lower() or ".jpg"
+
+    # S3 object key under our uploads prefix
+    key = f"pantry_uploads/{uuid4().hex}{ext}"
+
+    # ---- 2) Bucket / region from settings, else env (works when USE_S3 is off) ----
+    bucket = (
+        getattr(settings, "AWS_STORAGE_BUCKET_NAME", None)
+        or os.getenv("AWS_STORAGE_BUCKET_NAME")
+    )
+    region = (
+        getattr(settings, "AWS_S3_REGION_NAME", None)
+        or os.getenv("AWS_S3_REGION_NAME")
+    )
+    if not bucket or not region:
+        return JsonResponse(
+            {"error": "S3 not configured (missing bucket/region)."},
+            status=500,
+        )
+
+    # ---- 3) Build a boto3 session and verify credentials exist ----
+    #
+    # Try explicit env keys first (handy for local .env); otherwise let
+    # boto3's default provider chain load credentials (AWS CLI profile, EC2/ECS role, etc.)
+    ak = os.getenv("AWS_ACCESS_KEY_ID") or getattr(settings, "AWS_ACCESS_KEY_ID", None)
+    sk = os.getenv("AWS_SECRET_ACCESS_KEY") or getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+
+    if ak and sk:
+        session = boto3.Session(
+            aws_access_key_id=ak,
+            aws_secret_access_key=sk,
+            region_name=region,
+        )
+    else:
+        session = boto3.Session(region_name=region)
+
+    # If boto3 still can’t find any creds, fail gracefully
+    if session.get_credentials() is None:
+        return JsonResponse(
+            {
+                "error": (
+                    "AWS credentials not found on server. "
+                    "Set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (or configure an AWS profile/role)."
+                )
+            },
+            status=500,
+        )
+
+    s3 = session.client("s3")
+
+    # ---- 4) Presign a POST policy for the browser ----
+    fields = {"Content-Type": content_type}
+    conditions = [
+        {"Content-Type": content_type},
+        ["content-length-range", 0, 10 * 1024 * 1024],  # 0 .. 10 MB
+        # You can add more constraints here (e.g., starts-with $key, etc.)
+    ]
+
+    resp = s3.generate_presigned_post(
+        Bucket=bucket,
+        Key=key,
+        Fields=fields,
+        Conditions=conditions,
+        ExpiresIn=300,  # URL valid for 5 minutes
+    )
+
+    # ---- 5) Return the policy + upload URL to the browser ----
+    return JsonResponse(
+        {"url": resp["url"], "fields": resp["fields"], "key": key},
+        status=200,
+    )
+
+@login_required
+@require_http_methods(["POST"])
 def pantry_extract_start(request):
     """
-    Save uploaded image → extract candidates (OCR then Vision) → store → review.
-    Triggered by 'Upload & Review' on the dashboard.
+    Two modes:
+    - Legacy: multipart file in request.FILES['upload']
+    - Direct-to-S3: request.POST['s3_key'] from the browser after a presigned upload
     """
     uploaded = request.FILES.get("upload")
-    if not uploaded:
+    s3_key = (request.POST.get("s3_key") or "").strip()
+
+    if not uploaded and not s3_key:
         messages.error(request, "Please choose an image to upload.")
         return redirect("core:dashboard")
 
-    # (Optional) lightweight content-type guard
-    allowed_ct = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"}
-    if uploaded.content_type and uploaded.content_type.lower() not in allowed_ct:
-        messages.error(request, "Unsupported image type. Please upload a JPG/PNG/WEBP/HEIC image.")
-        return redirect("core:dashboard")
-
-    # Create the DB record and persist the image via the model field
     up = PantryImageUpload(user=request.user)
-    # If your model has a Status enum/choices with PENDING, set it safely:
     try:
         up.status = (
             getattr(PantryImageUpload, "PENDING", None)
@@ -727,30 +825,29 @@ def pantry_extract_start(request):
     except Exception:
         pass
 
-    # Keep extension and store under a stable prefix; generating a unique filename
-    ext = (Path(uploaded.name).suffix or ".jpg").lower()
-    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
-        ext = ".jpg"
-    unique_name = f"pantry_uploads/{uuid4().hex}{ext}"
+    if uploaded:
+        # write via default storage (S3 in prod, filesystem in dev)
+        from uuid import uuid4
+        from pathlib import Path
+        ext = (Path(uploaded.name).suffix or ".jpg").lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
+            ext = ".jpg"
+        up.image.save(f"pantry_uploads/{uuid4().hex}{ext}", uploaded, save=True)
+    else:
+        # Browser already uploaded to S3; just point the ImageField at that key.
+        up.image.name = s3_key
+        up.save()
 
-    # This writes the file using the default storage (S3 in prod, filesystem in dev)
-    # and assigns the name to up.image. save=True will also call up.save().
-    up.image.save(unique_name, uploaded, save=True)
-
-    # Build a public absolute URL for Vision / review page
+    # Build absolute URL for OCR/vision fallback
     img_url = request.build_absolute_uri(up.image.url)
 
-    # Some storages (S3) don't support .path; guard it.
+    # image.path may not exist on S3; guard it
     try:
-        img_path = up.image.path  # works on local filesystem storage
+        img_path = up.image.path
     except Exception:
         img_path = None
 
-    # Run extraction. Your helper should tolerate img_path=None and use img_url.
-    # (If your OCR needs bytes, we can adapt to open the file via default_storage.)
     candidates = _extract_candidates(image_path=img_path, image_url=img_url)
-
-    # Persist parsed candidates to the upload record (your existing helper)
     _store_upload_results(up, candidates)
 
     return redirect("core:pantry_extract_review", upload_id=up.pk)
