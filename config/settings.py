@@ -183,6 +183,7 @@ if USE_S3:
     AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+wershell
 
     AWS_QUERYSTRING_AUTH = False      # public, cacheable URLs
     AWS_S3_FILE_OVERWRITE = False

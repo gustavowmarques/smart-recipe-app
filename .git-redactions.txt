@@ -1,0 +1,5 @@
+regex:AKIA[0-9A-Z]{16}==>REDACTED
+regex:ASIA[0-9A-Z]{16}==>REDACTED
+regex:aws_secret_access_key[^\n]*==>aws_secret_access_key=REDACTED
+regex:AWS_SECRET_ACCESS_KEY[^\n]*==>AWS_SECRET_ACCESS_KEY=os.getenv("AWS_SECRET_ACCESS_KEY")
+regex:AWS_ACCESS_KEY_ID[^\n]*==>AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
