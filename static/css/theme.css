@@ -31,15 +31,15 @@ body { background: var(--page-bg); }
   --bs-body-color: #e8eaf2;
   --bs-body-bg: var(--page-bg);
 }
-.theme-dark .card, 
-.theme-dark .table, 
+.theme-dark .card,
+.theme-dark .table,
 .theme-dark .empty { background:#141926; color:var(--bs-body-color); }
 .theme-dark .table thead { background:#0f1420; }
-.theme-dark .navbar, 
+.theme-dark .navbar,
 .theme-dark .bg-white { background:#0f1420 !important; }
 
 /* Hero readability in dark */
-.theme-dark .hero { 
+.theme-dark .hero {
   background: linear-gradient(135deg, rgba(37,99,235,.20), rgba(16,185,129,.14));
 }
 .theme-dark .hero h1,
