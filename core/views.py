@@ -20,6 +20,7 @@ except Exception:
 
 # ---- third-party HTTP --------------------------------------------------------
 import requests
+from .services.image_lookup import spoonacular_image_for, cache_remote_image_to_storage
 
 # ---- Django ------------------------------------------------------------------
 from django import forms
@@ -1065,11 +1066,106 @@ def recipes_search(request):
 
 @login_required
 def recipes_results(request):
-    """Render the combined results kept in session by recipes_search()."""
+    """
+    Render the combined results kept in session by recipes_search().
+
+    If an AI result has no image, we try to fetch a thumbnail from Spoonacular
+    (using SPOONACULAR_API_KEY) and attach it as `image_url` so the results grid
+    looks consistent with web results. We save the enriched results back into
+    the session to avoid repeat API calls on every page load.
+    """
+    # Pull results from session
     data = request.session.get("recipe_results") or {}
-    combined = data.get("combined") or []
-    ai = data.get("ai") or []
-    web = data.get("web") or []
+    combined = list(data.get("combined") or [])
+    ai = list(data.get("ai") or [])
+    web = list(data.get("web") or [])
+
+    # ---------- helpers (local to keep this view drop-in) ----------
+    import os
+    import requests
+    from django.conf import settings
+
+    def _get(item, attr, default=None):
+        if isinstance(item, dict):
+            return item.get(attr, default)
+        return getattr(item, attr, default)
+
+    def _set(item, attr, value):
+        if isinstance(item, dict):
+            item[attr] = value
+        else:
+            setattr(item, attr, value)
+
+    def _is_ai(item) -> bool:
+        kind = (_get(item, "kind", "") or _get(item, "type", "")).lower()
+        if kind == "ai":
+            return True
+        return bool(_get(item, "is_ai", False))
+
+    def _has_image(item) -> bool:
+        return bool(_get(item, "image_url") or _get(item, "image") or _get(item, "thumb"))
+
+    def _title_of(item) -> str:
+        return (_get(item, "title") or _get(item, "name") or "").strip()
+
+    def _spoonacular_thumb(title: str) -> str | None:
+        """Return a small image URL for a dish title via Spoonacular."""
+        api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv("SPOONACULAR_API_KEY")
+        if not api_key or not title:
+            return None
+        try:
+            r = requests.get(
+                "https://api.spoonacular.com/recipes/complexSearch",
+                params={"apiKey": api_key, "query": title, "number": 1},
+                timeout=6,
+            )
+            if r.ok:
+                results = (r.json() or {}).get("results") or []
+                if results and results[0].get("image"):
+                    return results[0]["image"]
+        except Exception:
+            pass
+        return None
+    # ----------------------------------------------------------------
+
+    # Collect AI titles that need an image
+    titles_needed = []
+    for seq in (combined, ai):
+        for item in seq:
+            if _is_ai(item) and not _has_image(item):
+                t = _title_of(item)
+                if t:
+                    titles_needed.append(t)
+
+    # Deduplicate while preserving order
+    titles_needed = list(dict.fromkeys(titles_needed))
+
+    # Fetch thumbnails once per title
+    title_to_url: dict[str, str] = {}
+    for title in titles_needed:
+        url = _spoonacular_thumb(title)
+        if url:
+            title_to_url[title] = url
+
+    # Apply thumbnails to items and mark if session needs saving
+    changed = False
+    if title_to_url:
+        for seq in (combined, ai):
+            for item in seq:
+                if _is_ai(item) and not _has_image(item):
+                    url = title_to_url.get(_title_of(item))
+                    if url:
+                        _set(item, "image_url", url)
+                        changed = True
+
+    # Persist enriched results back to session so we don't refetch next time
+    if changed:
+        data["combined"] = combined
+        data["ai"] = ai
+        data["web"] = web
+        request.session["recipe_results"] = data
+        request.session.modified = True
+
     return render(request, "core/recipe_results.html", {
         "combined": combined,
         "ai_count": len(ai),
@@ -1363,16 +1459,50 @@ def web_recipes(request):
 def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Optional[int] = None):
     """
     Show detail for a result stored in session.
-    Accepts either 'rid' (slug route) or legacy 'recipe_id' (int route).
+    If it's an AI recipe and it has no image yet, fetch a representative image
+    (Spoonacular) and optionally cache it to our storage (S3/local).
     """
-    # accept both param names for compatibility
+    # Accept both param names for compatibility
     key = rid if rid is not None else recipe_id
+
     recipe = _get_session_recipe(source, key, request)
     if not recipe:
         raise Http404("Recipe not found in session (maybe results expired).")
 
-    # TIP: if you need to fetch more fields for Web recipes, do it here using recipe['id'].
+    # Best-effort image for AI items with no image yet
+    try:
+        if source == "ai" and not (recipe.get("image_url") or recipe.get("image")):
+            title = (recipe.get("title") or recipe.get("name") or "").strip()
+            if title:
+                # 1) Ask Spoonacular for a representative photo URL
+                remote_url = spoonacular_image_for(title)
+
+                # 2) Optionally copy that image into our storage (S3/local)
+                #    Comment the next two lines if you'd rather hot-link
+                cached_url = cache_remote_image_to_storage(remote_url) if remote_url else None
+                final_url = cached_url or remote_url
+
+                if final_url:
+                    # Attach to the recipe payload being rendered now
+                    recipe["image_url"] = final_url
+                    recipe["image"] = final_url
+
+                    # Also push it back into the session so it persists
+                    bundle = request.session.get("recipe_results") or {}
+                    for list_name in ("combined", "ai"):
+                        lst = bundle.get(list_name) or []
+                        for it in lst:
+                            if str(it.get("id")) == str(key):
+                                it["image_url"] = final_url
+                                it["image"] = final_url
+                    request.session["recipe_results"] = bundle
+                    request.session.modified = True
+    except Exception:
+        # Never break the page because of an image fetch
+        logger.exception("Failed to attach fallback image for AI recipe.")
+
     return render(request, "core/recipe_detail.html", {"recipe": recipe, "source": source})
+
 
 @login_required
 def favorite_detail(request, pk: int):
@@ -1658,3 +1788,27 @@ def meal_delete(request, meal_id: int):
     meal.delete()
     messages.success(request, "Meal removed.")
     return redirect(f"{reverse('core:meal_plan')}?week={week}")
+
+def _thumb_for_title_via_spoonacular(title: str) -> str | None:
+    """
+    Return a smallish image URL for a dish title using Spoonacular's
+    /complexSearch endpoint. Returns None on any failure.
+    """
+    api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv("SPOONACULAR_API_KEY")
+    if not api_key or not title:
+        return None
+
+    try:
+        r = requests.get(
+            "https://api.spoonacular.com/recipes/complexSearch",
+            params={"apiKey": api_key, "query": title, "number": 1},
+            timeout=6,
+        )
+        if r.ok:
+            data = r.json() or {}
+            results = data.get("results") or []
+            if results:
+                return results[0].get("image")  # usually a CDN URL
+    except Exception:
+        pass
+    return None
