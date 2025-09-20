@@ -5,6 +5,7 @@ Ready for local dev and Render.com deployment.
 
 from pathlib import Path
 import os
+import warnings
 import dj_database_url
 from dotenv import load_dotenv
 
@@ -17,7 +18,7 @@ load_dotenv(BASE_DIR / ".env")  # loads .env from project root
 # ---------------------------------------------------------------------
 # OPENAI
 # ---------------------------------------------------------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # ---------------------------------------------------------------------
 # Tesseract
@@ -80,7 +81,6 @@ INSTALLED_APPS = [
 
     # third-party
     "rest_framework",
-    "storages",
 
     # local
     "core",
@@ -132,17 +132,18 @@ TEMPLATES = [
 # - Postgres on Render via DATABASE_URL
 # - Falls back to SQLite locally if DATABASE_URL not provided
 # ---------------------------------------------------------------------
-db_from_env = dj_database_url.config(conn_max_age=600, ssl_require=True)
-DATABASES = (
-    {"default": db_from_env}
-    if db_from_env
-    else {
+db_from_env = dj_database_url.config(default=None, conn_max_age=600, ssl_require=True)
+
+if db_from_env:
+    DATABASES = {"default": db_from_env}
+else:
+    warnings.warn("No DATABASE_URL set; falling back to local sqlite3.")
+    DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-)
 
 # ---------------------------------------------------------------------
 # PASSWORD VALIDATION
