@@ -13,3 +13,9 @@ staticfiles/
 # Environment
 .env
 .git-redactions.txt
+.env
+*.env
+media/
+media/**/*
+staticfiles/
+__pycache__/
