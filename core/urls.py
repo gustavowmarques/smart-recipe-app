@@ -63,4 +63,9 @@ urlpatterns = [
     path("pantry/upload-to-review/", views.pantry_extract_start, name="pantry_upload_to_review"),
 
     path("api/s3/presign-upload/", views.presign_s3_upload, name="presign_s3_upload"),
+
+    # About / Contact
+    path("about/", views.about, name="about"),
+    path("contact/", views.contact, name="contact"),
+
 ]

@@ -38,6 +38,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_protect
 from django.core.files.storage import default_storage
+from django.core.mail import send_mail
 
 # ---- App models & forms ------------------------------------------------------
 from .models import (
@@ -1083,7 +1084,6 @@ def recipes_results(request):
     # ---------- helpers (local to keep this view drop-in) ----------
     import os
     import requests
-    from django.conf import settings
 
     def _get(item, attr, default=None):
         if isinstance(item, dict):
@@ -1947,3 +1947,33 @@ def _thumb_for_title_via_spoonacular(title: str) -> str | None:
     except Exception:
         pass
     return None
+
+class ContactForm(forms.Form):
+    name = forms.CharField(max_length=120, widget=forms.TextInput(attrs={"placeholder": "Your name"}))
+    email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@example.com"}))
+    message = forms.CharField(widget=forms.Textarea(attrs={"rows": 5, "placeholder": "How can we help?"}))
+
+def about(request):
+    return render(request, "core/about.html")
+
+def contact(request):
+    if request.method == "POST":
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            # Option A: email (works if EMAIL_BACKEND configured)
+            try:
+                send_mail(
+                    subject=f"[Smart Recipe] Contact from {data['name']}",
+                    message=f"From: {data['name']} <{data['email']}>\n\n{data['message']}",
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@example.com"),
+                    recipient_list=[getattr(settings, "DEFAULT_TO_EMAIL", getattr(settings, "DEFAULT_FROM_EMAIL", "admin@example.com"))],
+                    fail_silently=True,
+                )
+            except Exception:
+                pass
+            messages.success(request, "Thanks! Your message has been sent.")
+            return redirect("core:contact")
+    else:
+        form = ContactForm()
+    return render(request, "core/contact.html", {"form": form})

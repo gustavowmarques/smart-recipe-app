@@ -74,6 +74,12 @@
               <a class="nav-link {% if request.path|slice:':7' == '/targets' %}active{% endif %}"
                  href="{% url 'core:nutrition_target' %}">Targets</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}" href="{% url 'core:about' %}">About</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'contact' %}active{% endif %}" href="{% url 'core:contact' %}">Contact</a>
+            </li>
           {% endif %}
         </ul>
         {% endwith %}
@@ -112,6 +118,75 @@
     {% endfor %}
     {% block content %}{% endblock %}
   </main>
+
+  {% block footer %}
+  <footer class="site-footer mt-auto pt-5 pb-4">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-12 col-md-4">
+          <a href="{% url 'core:home' %}" class="d-inline-flex align-items-center text-decoration-none">
+            <img src="{% static 'img/logo.svg' %}" alt="" width="32" height="32" class="me-2">
+            <span class="fw-semibold fs-5">Smart Recipe</span>
+          </a>
+          <p class="text-muted mt-3 mb-2">
+            From fridge → recipe in seconds. Save ingredients, get matches, plan meals, and hit your targets.
+          </p>
+          <div class="d-flex gap-3 fs-5">
+            <a class="text-muted hover-primary" href="https://twitter.com/" target="_blank" rel="noopener" aria-label="X / Twitter">
+              <i class="bi bi-twitter-x"></i>
+            </a>
+            <a class="text-muted hover-primary" href="https://www.instagram.com/" target="_blank" rel="noopener" aria-label="Instagram">
+              <i class="bi bi-instagram"></i>
+            </a>
+            <a class="text-muted hover-primary" href="https://www.linkedin.com/" target="_blank" rel="noopener" aria-label="LinkedIn">
+              <i class="bi bi-linkedin"></i>
+            </a>
+            <a class="text-muted hover-primary" href="https://github.com/gustavowmarques/smart-recipe-app.git" target="_blank" rel="noopener" aria-label="GitHub">
+              <i class="bi bi-github"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <h6 class="text-uppercase small fw-bold mb-3">Product</h6>
+          <ul class="list-unstyled small">
+            <li><a class="link-secondary text-decoration-none" href="{% url 'core:dashboard' %}">Dashboard</a></li>
+            <li><a class="link-secondary text-decoration-none" href="{% url 'core:favorites' %}">Favorites</a></li>
+            <li><a class="link-secondary text-decoration-none" href="{% url 'core:meal_plan' %}">Meal plan</a></li>
+            <li><a class="link-secondary text-decoration-none" href="{% url 'core:nutrition_target' %}">Targets</a></li>
+          </ul>
+        </div>
+
+      <div class="col-6 col-md-2">
+        <h6 class="text-uppercase small fw-bold mb-3">Company</h6>
+        <ul class="list-unstyled small">
+          <li><a class="link-secondary text-decoration-none" href="{% url 'core:about' %}">About us</a></li>
+          <li><a class="link-secondary text-decoration-none" href="{% url 'core:contact' %}">Contact</a></li>
+        </ul>
+      </div>
+
+      <div class="col-12 col-md-4">
+        <h6 class="text-uppercase small fw-bold mb-3">Stay in the loop</h6>
+        <form class="d-flex gap-2" onsubmit="event.preventDefault(); alert('Thanks! (demo)');">
+          <input type="email" class="form-control" placeholder="Your email">
+          <button class="btn btn-primary">Subscribe</button>
+        </form>
+        <p class="text-muted small mt-2 mb-0">Occasional updates. No spam.</p>
+      </div>
+    </div>
+
+    <hr class="my-4">
+    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center small text-muted">
+      <div>© {{ now|date:"Y" }} Smart Recipe — All rights reserved.</div>
+      <div class="mt-2 mt-sm-0">
+        <a class="link-secondary text-decoration-none me-3" href="#">Terms</a>
+        <a class="link-secondary text-decoration-none" href="#">Privacy</a>
+      </div>
+    </div>
+  </div>
+</footer>
+{% endblock %}
+
 
   <!-- Bootstrap JS bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>

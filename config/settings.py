@@ -68,6 +68,9 @@ if not DEBUG:
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
+# to print emails to the console.
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 # ---------------------------------------------------------------------
 # APPS
 # ---------------------------------------------------------------------
@@ -85,6 +88,8 @@ INSTALLED_APPS = [
     # local
     "core",
     "accounts",
+
+    'widget_tweaks',
 ]
 
 # ---------------------------------------------------------------------
