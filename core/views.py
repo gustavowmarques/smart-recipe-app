@@ -5,7 +5,9 @@ import json
 import base64
 import mimetypes
 import logging
+from datetime import date as _date, timedelta 
 import datetime as dt
+from datetime import date
 from uuid import uuid4
 from pathlib import Path
 import boto3
@@ -48,6 +50,7 @@ from .models import (
     MealPlan,
     Meal,
     PantryImageUpload,
+    LoggedMeal,
 )
 from .forms import (
     IngredientForm,
@@ -56,6 +59,8 @@ from .forms import (
     PantryImageUploadForm,
     MealAddForm,
 )
+
+from .services.nutrition import compute_daily_totals, suggest_recipes_for_gaps, sync_logged_meals_from_plan
 
 
 
@@ -70,6 +75,9 @@ if OpenAI:
     _openai_client = OpenAI(
         api_key=(getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY"))
     )
+#Spoonacular
+from .services.recipes import spoon_search
+
 
 # ---- Logging -----------------------------------------------------------------
 logger = logging.getLogger(__name__)
@@ -90,6 +98,41 @@ if pytesseract:
 # =============================================================================
 # Unified recipe search helpers (single button)
 # =============================================================================
+
+def _stash_suggestions_in_session(request, suggestions: list[dict]) -> None:
+    """
+    Merge suggestions (treated as 'web' items) into the session's recipe_results
+    so recipe_detail() can retrieve them by id.
+    Expected suggestion fields: id, title, (optional) image.
+    """
+    bundle = request.session.get("recipe_results") or {"ai": [], "web": [], "combined": []}
+
+    def _idx(lst):
+        return {str(it.get("id")) for it in lst if isinstance(it, dict)}
+
+    web_ids = _idx(bundle.get("web", []))
+    combined_ids = _idx(bundle.get("combined", []))
+
+    for s in suggestions or []:
+        sid = str(s.get("id"))
+        if not sid:
+            continue
+        item = {
+            "id": s.get("id"),
+            "title": s.get("title") or "Recipe",
+            "image": s.get("image") or s.get("image_url"),
+            "image_url": s.get("image_url") or s.get("image"),
+            "source": "web",
+            "meta": {},  # you can enrich later
+        }
+        if sid not in web_ids:
+            bundle.setdefault("web", []).append(item)
+        if sid not in combined_ids:
+            bundle.setdefault("combined", []).append(item)
+
+    request.session["recipe_results"] = bundle
+    request.session.modified = True
+
 
 def _gather_ingredient_names(request) -> List[str]:
     """
@@ -1629,11 +1672,17 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
         "summary": recipe.get("summary") or meta.get("summary"),
     }
 
+    external_id = str(key)
+    already_saved = SavedRecipe.objects.filter(
+        user=request.user, source=source, external_id=external_id
+    ).exists()
+
     context = {
         "recipe": normalized,
         "display_steps": steps_list,
         "display_ingredients": display_ingredients,
         "source": source,
+        "already_saved": already_saved,
     }
     logger.info("DETAIL DEBUG: steps=%s ings=%s", len(steps_list), len(display_ingredients))
     return render(request, "core/recipe_detail.html", context)
@@ -1810,16 +1859,75 @@ def _monday_for(anchor: dt.date) -> dt.date:
 
 @login_required
 def nutrition_target_upsert(request):
+    """
+    Targets page:
+    - Save/update the user's target macros.
+    - Sync today's Meal Plan items into LoggedMeal so totals include planned meals.
+    - Compute today's totals.
+    - Generate suggestions safely (never crash page if helper/api missing).
+    """
     target, _ = NutritionTarget.objects.get_or_create(user=request.user)
+
     if request.method == "POST":
         form = NutritionTargetForm(request.POST, instance=target)
         if form.is_valid():
             form.save()
-            messages.success(request, "Nutrition target saved.")
-            return redirect("core:meal_plan")
+            messages.success(request, "Nutrition targets saved.")
+            return redirect("core:nutrition_target")
     else:
         form = NutritionTargetForm(instance=target)
-    return render(request, "core/nutrition_target.html", {"form": form})
+
+    # Today (single source of truth for this view)
+    today = date.today()
+
+    # Pull in today's meal-plan rows as logged meals (no-op if helper not available)
+    try:
+        sync_logged_meals_from_plan(request.user, today)
+    except Exception:
+        # Never break the page if meal-plan sync can't run
+        pass
+
+    # Compute totals and fetch today's logged meals
+    totals = compute_daily_totals(request.user, today, target)
+    todays_meals = LoggedMeal.objects.filter(user=request.user, date=today).order_by("id")
+
+    # Suggestions: safe wrapper so missing stubs / API issues never crash the page
+    try:
+        # spoon_search is imported at top of views.py
+        suggestions = suggest_recipes_for_gaps(
+            target=target,
+            totals=totals,
+            search_fn=spoon_search,
+            max_items=4,
+        )
+    except Exception:
+        suggestions = []
+
+    # Expose suggestions to recipe_detail (session-backed results)
+    request.session.setdefault("recipe_results", {})
+    request.session["recipe_results"]["web"] = suggestions or []
+    request.session.modified = True
+
+    context = {
+        "form": form,
+        "target": target,
+        "totals": {
+            "calories": totals.calories,
+            "calories_pct": totals.calories_pct,
+            "protein_g": totals.protein_g,
+            "protein_pct": totals.protein_pct,
+            "carbs_g": totals.carbs_g,
+            "carbs_pct": totals.carbs_pct,
+            "fat_g": totals.fat_g,
+            "fat_pct": totals.fat_pct,
+            "fiber_g": totals.fiber_g,
+            "sugar_g": totals.sugar_g,
+        },
+        "todays_meals": todays_meals,
+        "suggestions": suggestions,
+    }
+    return render(request, "core/nutrition_target.html", context)
+
 
 @login_required
 def meal_plan_view(request):
@@ -1977,3 +2085,168 @@ def contact(request):
     else:
         form = ContactForm()
     return render(request, "core/contact.html", {"form": form})
+
+@login_required
+def nutrition_target_reset(request):
+    NutritionTarget.objects.filter(user=request.user).delete()
+    messages.success(request, "Nutrition targets were reset.")
+    return redirect("core:nutrition_target")
+
+def _week_start(d: _date) -> _date:
+    """Monday as the start of the week (same convention your meal plan uses)."""
+    return d - timedelta(days=d.weekday())
+
+@require_POST
+@login_required
+def log_custom_meal(request):
+    """
+    Create a LoggedMeal from the 'Quick log' form on Targets.
+    (5) Also mirrors it into the weekly Meal Plan if available:
+        - creates/gets this week's plan
+        - warns if the same slot already has a meal today
+        - otherwise creates a simple plan item for today
+    """
+    # Parse inputs (fixes: these were missing in your current function)
+    title = (request.POST.get("title") or "").strip() or "Custom meal"
+    meal_type = request.POST.get("meal_type") or "lunch"
+
+    def _ival(name: str) -> int:
+        try:
+            return int(request.POST.get(name, 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    cals = _ival("calories")
+    p = _ival("protein_g")
+    c = _ival("carbs_g")
+    f = _ival("fat_g")
+
+    # Qty can be integer or decimal; defaults to 1.0
+    try:
+        qty = float(request.POST.get("quantity") or 1.0)
+    except (TypeError, ValueError):
+        qty = 1.0
+
+    day = _date.today()
+
+    # Create the logged meal (this drives the progress bars)
+    lm = LoggedMeal.objects.create(
+        user=request.user,
+        date=day,  # ensure 'today' explicitly
+        meal_type=meal_type,
+        title=title,
+        calories=int(round(cals * qty)),
+        protein_g=int(round(p * qty)),
+        carbs_g=int(round(c * qty)),
+        fat_g=int(round(f * qty)),
+    )
+
+    # Mirror into the Meal Plan (weekly) if your schema is present
+    try:
+        # Your codebase has MealPlan + Meal (plan.meals relation). We use generic field detection
+        # so this works even if your related model uses slightly different names.
+        week = _week_start(day)
+        plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week)
+
+        meals_rel = getattr(plan, "meals", None)  # RelatedManager to plan items (Meal)
+        if not meals_rel:
+            messages.success(request, "Meal logged.")
+            return redirect("core:nutrition_target")
+
+        # Check conflict: same slot already set today?
+        conflict = None
+        for item in meals_rel.all():
+            item_date = (
+                getattr(item, "date", None)
+                or getattr(item, "for_date", None)
+                or getattr(item, "scheduled_date", None)
+                or getattr(item, "day", None)
+            )
+            item_slot = getattr(item, "meal_type", None) or getattr(item, "slot", None)
+            if item_date == day and item_slot == meal_type:
+                conflict = item
+                break
+
+        if conflict:
+            messages.warning(request, f"There is already a {meal_type} saved in your Meal Plan for today.")
+        else:
+            # Create a simple plan item for today.
+            # If your Meal model requires a recipe FK, you can adapt this to create a minimal SavedRecipe first;
+            # otherwise these generic fields typically exist on a simple "Meal" item.
+            create_kwargs = {"title": title}
+
+            rel_model = meals_rel.model
+            # date field
+            if hasattr(rel_model, "date"):
+                create_kwargs["date"] = day
+            elif hasattr(rel_model, "for_date"):
+                create_kwargs["for_date"] = day
+            elif hasattr(rel_model, "scheduled_date"):
+                create_kwargs["scheduled_date"] = day
+            elif hasattr(rel_model, "day"):
+                create_kwargs["day"] = day
+
+            # meal type / slot field
+            if hasattr(rel_model, "meal_type"):
+                create_kwargs["meal_type"] = meal_type
+            elif hasattr(rel_model, "slot"):
+                create_kwargs["slot"] = meal_type
+
+            # If your Meal model has optional macro fields, pass them along:
+            for k, v in {
+                "calories": lm.calories,
+                "protein_g": lm.protein_g,
+                "carbs_g": lm.carbs_g,
+                "fat_g": lm.fat_g,
+            }.items():
+                if hasattr(rel_model, k):
+                    create_kwargs[k] = v
+
+            meals_rel.create(**create_kwargs)
+            messages.success(request, "Meal logged (and added to your Meal Plan).")
+    except Exception:
+        # MealPlan not present / schema different — logging still succeeded
+        messages.success(request, "Meal logged.")
+
+    return redirect("core:nutrition_target")
+
+@require_POST
+@login_required
+def log_recipe_meal(request, recipe_id: int):
+    """
+    Log a meal from a recipe card/detail. Expects nutrition numbers posted as hidden inputs.
+    If you don’t have macros, at least send calories.
+    """
+    title = (request.POST.get("title") or "").strip() or f"Recipe #{recipe_id}"
+    meal_type = request.POST.get("meal_type") or "dinner"
+    qty = float(request.POST.get("quantity") or 1.0)
+
+    def _ival(name):
+        try:
+            return int(request.POST.get(name, 0) or 0)
+        except ValueError:
+            return 0
+
+    cals = _ival("calories")
+    p = _ival("protein_g")
+    c = _ival("carbs_g")
+    f = _ival("fat_g")
+
+    LoggedMeal.objects.create(
+        user=request.user, meal_type=meal_type, title=title,
+        source_recipe_id=str(recipe_id),
+        calories=int(round(cals * qty)),
+        protein_g=int(round(p * qty)),
+        carbs_g=int(round(c * qty)),
+        fat_g=int(round(f * qty)),
+    )
+    messages.success(request, "Meal logged from recipe.")
+    return redirect("core:nutrition_target")
+
+@require_POST
+@login_required
+def delete_meal(request, meal_id: int):
+    meal = get_object_or_404(LoggedMeal, id=meal_id, user=request.user)
+    meal.delete()
+    messages.success(request, "Meal removed.")
+    return redirect("core:nutrition_target")

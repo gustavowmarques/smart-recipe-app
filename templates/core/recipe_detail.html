@@ -1,4 +1,16 @@
-{# core/recipe_detail.html #}
+
+   <!-- Purpose: Show a single recipe with ingredients & instructions and let users log it as a meal.
+
+   Requirements/assumptions:
+   - URL name for logging: core:log_recipe_meal (expects <int:recipe_id>)
+   - View that renders this template passes:
+       recipe: dict/object with fields like id, title, image, readyInMinutes, servings, sourceUrl
+       display_ingredients: optional list[str] preformatted for display
+       display_steps:       optional list[str] preformatted for display
+       recipe.nutrition:    (optional) dict/object with calories, protein_g, carbs_g, fat_g (per serving)
+     If nutrition is missing, the Log Meal form still works (it will send zeros except title).
+   - CSRF is enabled (Django default). -->
+
 {% extends "core/base.html" %}
 {% load static %}
 
@@ -6,52 +18,143 @@
 
 {% block content %}
 <div class="container my-4">
+
+  <!-- Back link -->
   <a href="javascript:history.back()" class="btn btn-link p-0">&larr; Back</a>
 
+  <!-- Title -->
   <h2 class="mt-2 mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
+  <!-- save to favoites -->
+  {# Save / Saved button #}
+  {% if already_saved %}
+    <a href="{% url 'core:favorites' %}" class="btn btn-outline-secondary btn-sm">
+      ✓ In Favorites
+    </a>
+  {% else %}
+    <form method="post" action="{% url 'core:save_favorite' source recipe.id %}" class="d-inline">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm">Save to Favorites</button>
+    </form>
+  {% endif %}
+
+
+  <!-- Hero image -->
   {% if recipe.image %}
     <img src="{{ recipe.image }}" alt="{{ recipe.title }}" class="img-fluid rounded shadow-sm mb-4">
   {% endif %}
 
+  <!-- Meta line -->
   <div class="text-muted small mb-4">
     {% if recipe.readyInMinutes %}⏱ {{ recipe.readyInMinutes }} min{% endif %}
     {% if recipe.readyInMinutes and recipe.servings %}&nbsp;·&nbsp;{% endif %}
-    {% if recipe.servings %}👥 {{ recipe.servings }} servings{% endif %}
+    {% if recipe.servings %} {{ recipe.servings }} servings{% endif %}
     {% if recipe.sourceUrl %}&nbsp;·&nbsp;<a href="{{ recipe.sourceUrl }}" target="_blank" rel="noopener">Source</a>{% endif %}
   </div>
 
   <div class="row g-4">
-    <div class="col-12 col-lg-6">
+    <!-- LEFT: Ingredients & Instructions -->
+    <div class="col-12 col-lg-8">
+      <!-- Ingredients -->
       <h4 class="mb-2">Ingredients</h4>
       <ul class="ps-3">
         {% if display_ingredients %}
-          {% for line in display_ingredients %}<li>{{ line }}</li>{% endfor %}
+          {% for line in display_ingredients %}
+            <li>{{ line }}</li>
+          {% endfor %}
         {% else %}
           <li class="text-muted">No ingredients provided.</li>
         {% endif %}
       </ul>
+
+      <!-- Instructions -->
+      <h4 class="mt-4 mb-2">Instructions</h4>
+      <ol class="ps-3">
+        {% if display_steps %}
+          {% for s in display_steps %}
+            <li>{{ s }}</li>
+          {% endfor %}
+        {% else %}
+          {% if recipe.sourceUrl %}
+            <li>Open the source link for full step-by-step instructions.</li>
+          {% else %}
+            <li class="text-muted">No instructions provided.</li>
+          {% endif %}
+        {% endif %}
+      </ol>
+
+      {% if recipe.summary %}
+        <div class="mt-4 text-muted small">{{ recipe.summary|safe }}</div>
+      {% endif %}
     </div>
 
-    <div class="col-12 col-lg-6">
-      <h4 class="mb-2">Instructions</h4>
-        <ol class="ps-3">
-          {% if display_steps %}
-            {% for s in display_steps %}<li>{{ s }}</li>{% endfor %}
+    <!-- RIGHT: Nutrition + Log Meal -->
+    <div class="col-12 col-lg-4">
+      <!-- Nutrition panel (if we have data) -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h5 class="card-title mb-2">Nutrition (per serving)</h5>
+          {% if recipe.nutrition %}
+            <ul class="list-unstyled mb-0 small">
+              <li><strong>Calories:</strong> {{ recipe.nutrition.calories|default:0 }} kcal</li>
+              <li><strong>Protein:</strong> {{ recipe.nutrition.protein_g|default:0 }} g</li>
+              <li><strong>Carbs:</strong> {{ recipe.nutrition.carbs_g|default:0 }} g</li>
+              <li><strong>Fat:</strong> {{ recipe.nutrition.fat_g|default:0 }} g</li>
+            </ul>
           {% else %}
-            {% if recipe.sourceUrl %}
-              <li>Open the source link for full step-by-step instructions.</li>
-            {% else %}
-              <li class="text-muted">No instructions provided.</li>
-            {% endif %}
+            <p class="text-muted mb-0 small">No nutrition details available for this recipe.</p>
           {% endif %}
-        </ol>
+        </div>
+      </div>
 
+      <!-- Log Meal form -->
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-2">Log this recipe</h5>
+          <p class="text-muted small mb-3">
+            Logs to today’s totals on your Targets page. Quantity multiplies nutrition per serving.
+          </p>
+
+          <form method="post" action="{% url 'core:log_recipe_meal' recipe.id %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+
+            <!-- Hidden nutrition payload (safe defaults if missing) -->
+            <input type="hidden" name="title" value="{{ recipe.title }}">
+            <input type="hidden" name="calories"  value="{{ recipe.nutrition.calories|default:0 }}">
+            <input type="hidden" name="protein_g" value="{{ recipe.nutrition.protein_g|default:0 }}">
+            <input type="hidden" name="carbs_g"   value="{{ recipe.nutrition.carbs_g|default:0 }}">
+            <input type="hidden" name="fat_g"     value="{{ recipe.nutrition.fat_g|default:0 }}">
+
+            <!-- Meal type -->
+            <div class="col-6">
+              <label class="form-label small" for="meal_type">Meal</label>
+              <select id="meal_type" name="meal_type" class="form-select form-select-sm">
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch" selected>Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="snack">Snack</option>
+              </select>
+            </div>
+
+            <!-- Quantity multiplier -->
+            <div class="col-6">
+              <label class="form-label small" for="quantity">Qty</label>
+              <input id="quantity" name="quantity" type="number" step="0.5" min="0.5" value="1"
+                     class="form-control form-control-sm">
+            </div>
+
+            <!-- Submit -->
+            <div class="col-12">
+              <button class="btn btn-sm btn-primary w-100">Log meal</button>
+            </div>
+          </form>
+
+          <p class="text-muted small mt-2 mb-0">
+            Tip: to change nutrients before logging, use the Quick Log form on the Targets page.
+          </p>
+        </div>
+      </div>
     </div>
   </div>
-
-  {% if recipe.summary %}
-    <div class="mt-4 text-muted small">{{ recipe.summary|safe }}</div>
-  {% endif %}
 </div>
 {% endblock %}

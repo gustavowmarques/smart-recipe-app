@@ -28,9 +28,11 @@ urlpatterns = [
     path("ai/recipes/<str:recipe_id>/", views.recipe_detail, {"source": "ai"}, name="recipe_detail_ai"),
     path("web/recipes/<str:recipe_id>/", views.recipe_detail, {"source": "web"}, name="recipe_detail_web"),
 
+    # detail for session-backed results (web/ai)
+    path("recipes/<str:source>/<int:recipe_id>/", views.recipe_detail, name="recipe_detail"),
 
-    # accepts both AI slugs and numeric web IDs
-    path("<str:source>/recipes/<str:recipe_id>/save/", views.save_favorite, name="save_favorite"),
+    # save to favorites for a session-backed result:
+    path("recipes/<str:source>/<int:recipe_id>/save/", views.save_favorite, name="save_favorite"),
 
     # Favorites (DB-backed)
     path("favorites/", views.favorites_list, name="favorites"),
@@ -41,10 +43,15 @@ urlpatterns = [
     path("recipes/new/", views.recipe_create, name="recipe_create"),
     path("recipes/<int:pk>/edit/", views.recipe_update, name="recipe_update"),
     path("recipes/<int:pk>/delete/", views.recipe_delete, name="recipe_delete"),
-    path("recipes/<int:pk>/", views.favorite_detail, name="recipe_detail"),
-
+    
     # Nutrition targets
     path("targets/", views.nutrition_target_upsert, name="nutrition_target"),
+    path("targets/reset/", views.nutrition_target_reset, name="nutrition_target_reset"),
+
+    # Meal logging
+    path("log-meal/custom/", views.log_custom_meal, name="log_custom_meal"),
+    path("log-meal/<int:recipe_id>/", views.log_recipe_meal, name="log_recipe_meal"),
+    path("log-meal/delete/<int:meal_id>/", views.delete_meal, name="delete_meal"),
 
     # Meal plan
     path("meal-plan/", views.meal_plan_view, name="meal_plan"),
@@ -67,5 +74,6 @@ urlpatterns = [
     # About / Contact
     path("about/", views.about, name="about"),
     path("contact/", views.contact, name="contact"),
+
 
 ]

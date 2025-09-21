@@ -75,12 +75,20 @@ class SavedRecipeForm(forms.ModelForm):
 class NutritionTargetForm(forms.ModelForm):
     class Meta:
         model = NutritionTarget
-        fields = ["calories", "protein_g", "carbs_g", "fat_g"]
+        fields = [
+            "calories",
+            "protein_g", "carbs_g", "fat_g",
+            "fiber_g", "sugar_g",
+            "diet_type",
+        ]
         widgets = {
-            "calories": forms.NumberInput(attrs={"min": 0, "step": 10, "class": "form-control"}),
-            "protein_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
-            "carbs_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
-            "fat_g": forms.NumberInput(attrs={"min": 0, "step": 1, "class": "form-control"}),
+            "calories": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "2000"}),
+            "protein_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "140"}),
+            "carbs_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "200"}),
+            "fat_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "70"}),
+            "fiber_g": forms.NumberInput(attrs={"min": 0, "class": "form-control"}),
+            "sugar_g": forms.NumberInput(attrs={"min": 0, "class": "form-control"}),
+            "diet_type": forms.Select(attrs={"class": "form-select"}),
         }
 
 class PantryImageUploadForm(forms.ModelForm):

@@ -185,22 +185,38 @@ class Meal(models.Model):
         return f"{self.date} {self.meal_type} ({self.plan.user})"
 
 
-class NutritionTarget(models.Model):
-    """
-    User-level daily macro goals.
-    """
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="nutrition_target",
-    )
-    calories = models.IntegerField(default=2000)
-    protein_g = models.IntegerField(default=100)
-    carbs_g = models.IntegerField(default=250)
-    fat_g = models.IntegerField(default=70)
+# --- Nutrition Targets ---
+from django.conf import settings
+from django.db import models
 
-    def __str__(self) -> str:
-        return f"Targets for {self.user}: {self.calories} kcal P{self.protein_g}/C{self.carbs_g}/F{self.fat_g}"
+class NutritionTarget(models.Model):
+    DIET_CHOICES = [
+        ("high_protein", "High Protein"),
+        ("balanced", "Balanced"),
+        ("keto", "Keto"),
+        ("vegetarian", "Vegetarian"),
+        ("vegan", "Vegan"),
+    ]
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nutrition_target")
+    calories = models.PositiveIntegerField(default=2000)
+
+    # macros (optional grams)
+    protein_g = models.PositiveIntegerField(null=True, blank=True)
+    carbs_g   = models.PositiveIntegerField(null=True, blank=True)
+    fat_g     = models.PositiveIntegerField(null=True, blank=True)
+
+    # optional extras
+    fiber_g = models.PositiveIntegerField(null=True, blank=True)
+    sugar_g = models.PositiveIntegerField(null=True, blank=True)
+
+    diet_type = models.CharField(max_length=32, choices=DIET_CHOICES, null=True, blank=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"NutritionTarget<{self.user}>"
+
 
 
 class PantryImageUpload(models.Model):
@@ -231,3 +247,33 @@ class PantryImageUpload(models.Model):
 
     def __str__(self) -> str:
         return f"Pantry upload {self.id} by {self.user} ({self.status})"
+
+class LoggedMeal(models.Model):
+    MEAL_TYPES = [
+        ("breakfast", "Breakfast"),
+        ("lunch", "Lunch"),
+        ("dinner", "Dinner"),
+        ("snack", "Snack"),
+    ]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="logged_meals")
+    date = models.DateField(auto_now_add=True)
+    meal_type = models.CharField(max_length=16, choices=MEAL_TYPES, default="lunch")
+
+    title = models.CharField(max_length=200, blank=True)          # e.g., "Chicken bowl"
+    source_recipe_id = models.CharField(max_length=64, blank=True) # if came from a recipe
+
+    calories = models.PositiveIntegerField(default=0)
+    protein_g = models.PositiveIntegerField(default=0)
+    carbs_g   = models.PositiveIntegerField(default=0)
+    fat_g     = models.PositiveIntegerField(default=0)
+    fiber_g   = models.PositiveIntegerField(default=0)
+    sugar_g   = models.PositiveIntegerField(default=0)
+
+    quantity = models.FloatField(default=1.0)  # multiplier if partial serving
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "date"])]
+        ordering = ["-date", "-id"]
+
+    def __str__(self):
+        return f"{self.user} {self.date}: {self.title or 'Meal'} ({self.calories} kcal)"
