@@ -39,7 +39,7 @@ html.sr-tour-active, html.sr-tour-active body {
   position: fixed;
   inset: 0;
   background: transparent;
-  
+
   -webkit-
   z-index: 2147483600;
   opacity: 0;

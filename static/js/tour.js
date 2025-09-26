@@ -1,9 +1,9 @@
 (function () {
 
   // Prevent double-initialization if tour.js is accidentally included twice
-  if (window.__SRTourLoaded) { 
+  if (window.__SRTourLoaded) {
     console.debug('tour.js already loaded; skipping second init');
-    return; 
+    return;
   }
   window.__SRTourLoaded = true;
 
