@@ -5,7 +5,7 @@ import json
 import base64
 import mimetypes
 import logging
-from datetime import date as _date, timedelta 
+from datetime import date as _date, timedelta
 import datetime as dt
 from datetime import date
 from uuid import uuid4
@@ -200,6 +200,44 @@ def _spoonacular_search(names: List[str], recipe_type: str = "food", limit: int 
 # --------------------------------------------------------------------------------------
 # AI recipe generation (robust JSON-first; markdown-table fallback; normalized keys)
 # --------------------------------------------------------------------------------------
+
+def _extract_protein_and_calories(item: dict) -> tuple[int, int]:
+    """
+    Return (protein_g, calories) from a Spoonacular item regardless of shape.
+    """
+    protein_g = 0
+    calories = 0
+
+    # Many wrappers expose: item["nutrition"]["nutrients"] = [{name, amount, unit}, ...]
+    nut = (item.get("nutrition") or {}).get("nutrients", [])
+    if isinstance(nut, list):
+        for n in nut:
+            name = (n.get("name") or "").lower()
+            if name == "protein":
+                try:
+                    protein_g = int(round(float(n.get("amount") or 0)))
+                except Exception:
+                    pass
+            if name == "calories":
+                try:
+                    calories = int(round(float(n.get("amount") or 0)))
+                except Exception:
+                    pass
+
+    # Some wrappers flatten: item["protein"], item["calories"]
+    if not protein_g:
+        try:
+            protein_g = int(round(float(item.get("protein") or 0)))
+        except Exception:
+            pass
+    if not calories:
+        try:
+            calories = int(round(float(item.get("calories") or 0)))
+        except Exception:
+            pass
+
+    return protein_g, calories
+
 
 def _slugify_title(title: str, ix: int = 0) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", (title or "").lower()).strip("-")
@@ -1857,6 +1895,62 @@ def recipe_delete(request, pk):
 def _monday_for(anchor: dt.date) -> dt.date:
     return anchor - dt.timedelta(days=anchor.weekday())
 
+def suggest_recipes_for_gaps(target, totals, search_fn, max_items: int = 4):
+    """
+    Build suggestions that keep the real Spoonacular 'id' so links go to /recipes/web/<id>/.
+    """
+    # Figure out what you need most today
+    protein_gap = max((target.protein_g or 0) - (totals.protein_g or 0), 0)
+    calorie_gap = max((target.calories or 0) - (totals.calories or 0), 0)
+
+    # Simple query strategy – bias to protein if you're short, otherwise balanced
+    if protein_gap >= 20:
+        query = "high protein quick dinner"
+    elif calorie_gap >= 400:
+        query = "balanced easy meal"
+    else:
+        query = "healthy simple lunch"
+
+    # Pull more than we need so we can rank
+    try:
+        raw = search_fn(query=query, number=24, add_recipe_nutrition=True)
+    except TypeError:
+        # If your wrapper uses different arg names, fall back to the simplest form
+        raw = search_fn(query, 24)
+
+    items = []
+    for r in raw or []:
+        rid = r.get("id")
+        if not isinstance(rid, int):
+            # must have a real numeric id to work with /recipes/web/<id>/
+            continue
+
+        # image: prefer your helper so you always have a valid URL
+        # (If your wrapper already gives full 'image' URLs, this still works.)
+        image_url = r.get("image")
+        if not image_url:
+            image_url = spoonacular_image_for(rid, r.get("imageType"))
+
+        protein_g, calories = _extract_protein_and_calories(r)
+
+        items.append({
+            "id": rid,                # KEEP the real Spoonacular ID
+            "title": r.get("title") or "Recipe",
+            "image": image_url,
+            "protein_g": protein_g,
+            "calories": calories,
+            "source": "web",          # IMPORTANT: mark as web
+        })
+
+    # Rank: prefer more protein when protein is short, otherwise aim under the calorie gap
+    if protein_gap >= 20:
+        items.sort(key=lambda x: (-x["protein_g"], x["calories"]))  # more protein, lower cals
+    else:
+        items.sort(key=lambda x: (abs(calorie_gap - x["calories"]), -x["protein_g"]))
+
+    return items[:max_items]
+
+
 @login_required
 def nutrition_target_upsert(request):
     """
@@ -2210,38 +2304,59 @@ def log_custom_meal(request):
 
     return redirect("core:nutrition_target")
 
-@require_POST
 @login_required
-def log_recipe_meal(request, recipe_id: int):
+@require_POST
+def log_recipe_meal(request, recipe_id):
     """
-    Log a meal from a recipe card/detail. Expects nutrition numbers posted as hidden inputs.
-    If you don’t have macros, at least send calories.
+    Log a meal from a recipe detail.
+    Works for:
+      - web: numeric Spoonacular IDs
+      - ai:  slug IDs
+    Expects recipe payload to be in session via the search/results/detail caching.
     """
-    title = (request.POST.get("title") or "").strip() or f"Recipe #{recipe_id}"
-    meal_type = request.POST.get("meal_type") or "dinner"
-    qty = float(request.POST.get("quantity") or 1.0)
+    key = str(recipe_id)
+    # Decide source by shape of id
+    source = "web" if key.isdigit() else "ai"
 
-    def _ival(name):
-        try:
-            return int(request.POST.get(name, 0) or 0)
-        except ValueError:
-            return 0
+    # Reuse the same session helper you already use in save_favorite/recipe_detail
+    recipe = _get_session_recipe(source, key, request)
+    if not recipe:
+        messages.error(request, "Recipe not available to log.")
+        return redirect("core:dashboard")
 
-    cals = _ival("calories")
-    p = _ival("protein_g")
-    c = _ival("carbs_g")
-    f = _ival("fat_g")
+    # Normalize nutrition
+    calories = int(round(float(recipe.get("calories") or recipe.get("cal") or 0)))
+    protein_g = int(round(float(recipe.get("protein_g") or 0)))
+    carbs_g   = int(round(float(recipe.get("carbs_g") or 0)))
+    fat_g     = int(round(float(recipe.get("fat_g") or 0)))
+
+    # Fallbacks if recipe has meta/nutrition arrays (web)
+    meta = recipe.get("meta") or {}
+    if not any([calories, protein_g, carbs_g, fat_g]):
+        for n in (meta.get("nutrition") or {}).get("nutrients", []):
+            nm = (n.get("name") or "").lower()
+            val = n.get("amount") or 0
+            if nm == "calories": calories = int(round(float(val)))
+            elif nm == "protein": protein_g = int(round(float(val)))
+            elif nm in ("carbohydrates", "carbs"): carbs_g = int(round(float(val)))
+            elif nm == "fat": fat_g = int(round(float(val)))
 
     LoggedMeal.objects.create(
-        user=request.user, meal_type=meal_type, title=title,
-        source_recipe_id=str(recipe_id),
-        calories=int(round(cals * qty)),
-        protein_g=int(round(p * qty)),
-        carbs_g=int(round(c * qty)),
-        fat_g=int(round(f * qty)),
+        user=request.user,
+        date=date.today(),
+        title=recipe.get("title") or "Logged recipe",
+        calories=calories or 0,
+        protein_g=protein_g or 0,
+        carbs_g=carbs_g or 0,
+        fat_g=fat_g or 0,
+        meal_type=request.POST.get("meal_type") or "lunch",
+        quantity=float(request.POST.get("quantity") or 1),
+        source=source,
+        external_id=str(recipe.get("id") or key),
     )
-    messages.success(request, "Meal logged from recipe.")
+    messages.success(request, "Meal logged.")
     return redirect("core:nutrition_target")
+
 
 @require_POST
 @login_required

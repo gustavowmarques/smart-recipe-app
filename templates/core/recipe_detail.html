@@ -1,16 +1,3 @@
-
-   <!-- Purpose: Show a single recipe with ingredients & instructions and let users log it as a meal.
-
-   Requirements/assumptions:
-   - URL name for logging: core:log_recipe_meal (expects <int:recipe_id>)
-   - View that renders this template passes:
-       recipe: dict/object with fields like id, title, image, readyInMinutes, servings, sourceUrl
-       display_ingredients: optional list[str] preformatted for display
-       display_steps:       optional list[str] preformatted for display
-       recipe.nutrition:    (optional) dict/object with calories, protein_g, carbs_g, fat_g (per serving)
-     If nutrition is missing, the Log Meal form still works (it will send zeros except title).
-   - CSRF is enabled (Django default). -->
-
 {% extends "core/base.html" %}
 {% load static %}
 
@@ -25,19 +12,19 @@
   <!-- Title -->
   <h2 class="mt-2 mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
-  <!-- save to favoites -->
-  {# Save / Saved button #}
+  {# --- Save to favorites --- #}
   {% if already_saved %}
     <a href="{% url 'core:favorites' %}" class="btn btn-outline-secondary btn-sm">
       ✓ In Favorites
     </a>
   {% else %}
-    <form method="post" action="{% url 'core:save_favorite' source recipe.id %}" class="d-inline">
-      {% csrf_token %}
-      <button class="btn btn-primary btn-sm">Save to Favorites</button>
-    </form>
+    {% if source == 'web' and recipe_id %}
+      <form method="post" action="{% url 'core:save_favorite' 'web' recipe_id %}" class="d-inline">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-sm">Save to Favorites</button>
+      </form>
+    {% endif %}
   {% endif %}
-
 
   <!-- Hero image -->
   {% if recipe.image %}
@@ -115,41 +102,56 @@
             Logs to today’s totals on your Targets page. Quantity multiplies nutrition per serving.
           </p>
 
-          <form method="post" action="{% url 'core:log_recipe_meal' recipe.id %}" class="row g-2 align-items-end">
-            {% csrf_token %}
+          {# ----- Log Meal form ----- #}
+          {# Pick the first non-empty ID; fall back to a slugified title. This avoids reverse() errors. #}
+          {% firstof recipe.source_id recipe.id recipe.slug recipe.title as rid_raw %}
+          {% with rid=rid_raw|slugify %}
+            {% if rid %}
+              <form method="post"
+                    action="{% url 'core:log_recipe_meal' rid %}"
+                    class="row g-2 align-items-end">
+                {% csrf_token %}
 
-            <!-- Hidden nutrition payload (safe defaults if missing) -->
-            <input type="hidden" name="title" value="{{ recipe.title }}">
-            <input type="hidden" name="calories"  value="{{ recipe.nutrition.calories|default:0 }}">
-            <input type="hidden" name="protein_g" value="{{ recipe.nutrition.protein_g|default:0 }}">
-            <input type="hidden" name="carbs_g"   value="{{ recipe.nutrition.carbs_g|default:0 }}">
-            <input type="hidden" name="fat_g"     value="{{ recipe.nutrition.fat_g|default:0 }}">
+                <!-- Hidden nutrition payload (safe defaults if missing) -->
+                <input type="hidden" name="title"     value="{{ recipe.title }}">
+                <input type="hidden" name="calories"  value="{{ recipe.nutrition.calories|default:0 }}">
+                <input type="hidden" name="protein_g" value="{{ recipe.nutrition.protein_g|default:0 }}">
+                <input type="hidden" name="carbs_g"   value="{{ recipe.nutrition.carbs_g|default:0 }}">
+                <input type="hidden" name="fat_g"     value="{{ recipe.nutrition.fat_g|default:0 }}">
 
-            <!-- Meal type -->
-            <div class="col-6">
-              <label class="form-label small" for="meal_type">Meal</label>
-              <select id="meal_type" name="meal_type" class="form-select form-select-sm">
-                <option value="breakfast">Breakfast</option>
-                <option value="lunch" selected>Lunch</option>
-                <option value="dinner">Dinner</option>
-                <option value="snack">Snack</option>
-              </select>
-            </div>
+                <!-- Meal type -->
+                <div class="col-6">
+                  <label class="form-label small" for="meal_type">Meal</label>
+                  <select id="meal_type" name="meal_type" class="form-select form-select-sm" required>
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch" selected>Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                </div>
 
-            <!-- Quantity multiplier -->
-            <div class="col-6">
-              <label class="form-label small" for="quantity">Qty</label>
-              <input id="quantity" name="quantity" type="number" step="0.5" min="0.5" value="1"
-                     class="form-control form-control-sm">
-            </div>
+                <!-- Quantity multiplier -->
+                <div class="col-6">
+                  <label class="form-label small" for="quantity">Qty</label>
+                  <input id="quantity" name="quantity" type="number" step="0.5" min="0.5" value="1"
+                        class="form-control form-control-sm">
+                </div>
 
-            <!-- Submit -->
-            <div class="col-12">
-              <button class="btn btn-sm btn-primary w-100">Log meal</button>
-            </div>
-          </form>
+                <!-- Submit -->
+                <div class="col-12">
+                  <button class="btn btn-sm btn-primary w-100">Log meal</button>
+                </div>
+              </form>
+            {% else %}
+              <!-- Graceful fallback if we truly have no usable ID -->
+              <div class="alert alert-warning mb-0">
+                We couldn’t determine a recipe ID to log this meal. You can still cook it 👍—try refreshing
+                or re-generating to enable logging.
+              </div>
+            {% endif %}
+          {% endwith %}
 
-          <p class="text-muted small mt-2 mb-0">
+          <p class="text-muted small mt-2 mb-0" data-tour="targets.quicklog">
             Tip: to change nutrients before logging, use the Quick Log form on the Targets page.
           </p>
         </div>

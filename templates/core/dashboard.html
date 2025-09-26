@@ -3,12 +3,18 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block body_attrs %}
+  data-page="dashboard"
   data-enable-tour="1"
   data-presign-url="{% url 'core:presign_s3_upload' %}"
 {% endblock %}
 
 {% block content %}
 <div class="container my-4">
+  <div class="d-flex justify-content-end mb-2">
+    <a href="#" class="btn btn-outline-primary btn-sm" data-tour-start data-tour-name="dashboard">
+      <i class="bi bi-info-circle me-1"></i> Take a quick tour
+    </a>
+  </div>
 
   {# flash messages #}
   {% for message in messages %}
@@ -60,7 +66,7 @@
     <div class="card-body">
 
       {# 1) Manual add (independent form) #}
-      <form method="post" action="{% url 'core:add_ingredient' %}" class="mb-4">
+      <form method="post" action="{% url 'core:add_ingredient' %}" class="mb-4" data-tour="dashboard.add">
         {% csrf_token %}
         <div class="row g-2 align-items-center">
           <div class="col-lg-5">
@@ -93,7 +99,7 @@
         <div class="input-group">
           <input type="file" name="upload" id="upload" accept="image/*" capture="environment"
                  class="form-control" aria-label="Upload a photo of your ingredients" required>
-          <button class="btn btn-outline-secondary" type="button" id="scan-btn">Scan with camera</button>
+          <button class="btn btn-outline-secondary" type="button" id="scan-btn" data-tour="dashboard.scan">Scan with camera</button>
           <button class="btn btn-primary" type="submit" id="upload-submit">Upload &amp; Review</button>
         </div>
         <div class="form-text">Receipt, shelf, handwritten list, etc. On mobile, the camera opens automatically.</div>
@@ -179,7 +185,7 @@
         <h2 class="h6 mb-3">Recipe type</h2>
         <div class="row g-2 align-items-center">
           <div class="col-auto">
-            <select class="form-select" name="type" style="min-width: 140px;" {% if not ingredients %}disabled{% endif %}>
+            <select class="form-select" name="type" style="min-width: 140px;" {% if not ingredients %}disabled{% endif %} data-tour="dashboard.type">
               <option value="food" selected>Food</option>
               <option value="drink">Drink</option>
             </select>
@@ -192,7 +198,7 @@
               </button>
             {% else %}
               <button class="btn btn-secondary" disabled>
-                <i class="bi bi-search me-1"></i>Search / Generate recipes
+                <i class="bi bi-search me-1" data-tour="dashboard.generate"></i>Search / Generate recipes
               </button>
             {% endif %}
           </div>
@@ -216,7 +222,7 @@
 
 {% block body_scripts %}
   {{ block.super }}
-  <script src="{% static 'js/tour.js' %}" defer></script>
   <script src="{% static 'js/dashboard.js' %}" defer></script>
   <script src="{% static 'js/direct_s3_upload.v2.js' %}" defer></script>
 {% endblock %}
+

@@ -1,44 +1,26 @@
 {% extends "core/base.html" %}
 {% load static %}
-
-  <!-- templates/core/nutrition_target.html
-  Purpose: Users set daily calorie/macro targets and see today's progress.
-
-  Context expected:
-    - target: NutritionTarget (calories, protein_g, carbs_g, fat_g)
-    - totals: {calories, calories_pct, protein_g, protein_pct, carbs_g, carbs_pct, fat_g, fat_pct, fiber_g, sugar_g}
-    - todays_meals: queryset of LoggedMeal for today (optional)
-    - suggestions: list[dict] of recipe suggestions (optional)
-    - messages: Django messages (optional)
-
-  Notes:
-    - All JavaScript stays external. This file only exposes data via a JSON <script> tag.
-    - Suggestion links must include a "source" segment so they hit your recipe_detail route. -->
-
+{% block body_attrs %} data-page="targets" {% endblock %}
 
 {% block title %}Nutrition Targets{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-
-  {# Flash messages #}
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }} mb-3">{{ message }}</div>
     {% endfor %}
   {% endif %}
 
-  {# Page header + back link #}
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">Nutrition Targets</h2>
     <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
   </div>
 
   <div class="row g-4">
-
-    {# ===================== LEFT: Target settings ===================== #}
+    <!-- LEFT: Target settings -->
     <div class="col-12 col-lg-5">
-      <div class="card shadow-sm">
+      <div class="card shadow-sm" data-tour="targets.form">
         <div class="card-body">
           <h5 class="card-title mb-3">Set Your Daily Targets</h5>
 
@@ -48,66 +30,37 @@
             <div class="mb-2">
               <label for="calories" class="form-label">
                 Calories (kcal)
-                <span class="text-muted" title="Total energy per day. Example: 2,000 for weight maintenance.">ⓘ</span>
+                <span class="text-muted" data-bs-toggle="tooltip" title="Total energy per day.">ⓘ</span>
               </label>
-              <input
-                id="calories"
-                name="calories"
-                type="number"
-                min="0"
-                class="form-control"
-                value="{{ target.calories|default_if_none:'' }}"
-                placeholder="2000"
-                required
-              >
-              <div class="form-text">How much energy you aim to consume each day (kcal).</div>
+              <input type="number" min="0" class="form-control" id="calories" name="calories"
+                     value="{{ target.calories|default_if_none:'' }}" placeholder="2000" required>
+              <div class="form-text">How much energy you aim to consume each day.</div>
             </div>
 
             <div class="row g-3">
               <div class="col-4">
                 <label for="protein_g" class="form-label">
                   Protein (g)
-                  <span class="text-muted" title="Daily protein target. Guide: ~1.6–2.2g per kg body weight if active.">ⓘ</span>
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily protein target.">ⓘ</span>
                 </label>
-                <input
-                  id="protein_g"
-                  name="protein_g"
-                  type="number"
-                  min="0"
-                  class="form-control"
-                  value="{{ target.protein_g|default_if_none:'' }}"
-                  placeholder="140"
-                >
+                <input type="number" min="0" class="form-control" id="protein_g" name="protein_g"
+                       value="{{ target.protein_g|default_if_none:'' }}" placeholder="140">
               </div>
               <div class="col-4">
                 <label for="carbs_g" class="form-label">
                   Carbs (g)
-                  <span class="text-muted" title="Daily carbohydrates. Example range: 150–250g.">ⓘ</span>
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily carbohydrates.">ⓘ</span>
                 </label>
-                <input
-                  id="carbs_g"
-                  name="carbs_g"
-                  type="number"
-                  min="0"
-                  class="form-control"
-                  value="{{ target.carbs_g|default_if_none:'' }}"
-                  placeholder="200"
-                >
+                <input type="number" min="0" class="form-control" id="carbs_g" name="carbs_g"
+                       value="{{ target.carbs_g|default_if_none:'' }}" placeholder="200">
               </div>
               <div class="col-4">
                 <label for="fat_g" class="form-label">
                   Fat (g)
-                  <span class="text-muted" title="Daily fat. Often 50–80g depending on calories & preference.">ⓘ</span>
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily fats.">ⓘ</span>
                 </label>
-                <input
-                  id="fat_g"
-                  name="fat_g"
-                  type="number"
-                  min="0"
-                  class="form-control"
-                  value="{{ target.fat_g|default_if_none:'' }}"
-                  placeholder="70"
-                >
+                <input type="number" min="0" class="form-control" id="fat_g" name="fat_g"
+                       value="{{ target.fat_g|default_if_none:'' }}" placeholder="70">
               </div>
             </div>
 
@@ -120,7 +73,7 @@
       </div>
     </div>
 
-    {# ===================== RIGHT: Progress & logging ===================== #}
+    <!-- RIGHT: Progress & suggestions -->
     <div class="col-12 col-lg-7">
 
       <div class="alert alert-secondary small mb-3">
@@ -129,8 +82,8 @@
         Not logging meals yet? Start from any recipe → “Log meal”.
       </div>
 
-      {# Quick log (manual custom meal). Quantity supports integers/decimals via step="any". #}
-      <div class="card shadow-sm mb-4" id="quick-log">
+      {# Quick log — tour anchor #}
+      <div class="card shadow-sm mb-4" id="quick-log" data-tour="targets.quicklog">
         <div class="card-body">
           <h6 class="card-title mb-2">Quick log</h6>
           <form method="post" action="{% url 'core:log_custom_meal' %}" class="row g-2 align-items-end">
@@ -176,44 +129,36 @@
         </div>
       </div>
 
-      {# ===================== Today's progress ===================== #}
-      <div class="card shadow-sm mb-4">
+      {# Progress — tour anchor #}
+      <div class="card shadow-sm mb-4" data-tour="targets.progress">
         <div class="card-body">
           <h5 class="card-title mb-2">Today’s Progress</h5>
 
           {% if target and totals %}
-            {# Calories #}
             <div class="mb-3">
               <div class="d-flex justify-content-between">
                 <span>Calories</span>
                 <span>{{ totals.calories|default:0 }} / {{ target.calories|default:"—" }} kcal</span>
               </div>
-              <div
-                class="progress"
-                role="progressbar"
-                aria-label="Calories progress"
-                aria-valuenow="{{ totals.calories_pct|default:0 }}"
-                aria-valuemin="0"
-                aria-valuemax="100"
-              >
-                <div
-                  class="progress-bar {% if totals.calories_pct > 110 %}bg-danger{% elif totals.calories_pct > 100 %}bg-warning{% endif %}"
-                  style="width: {{ totals.calories_pct|default:0 }}%"
-                ></div>
+              <div class="progress" role="progressbar"
+                   aria-label="Calories progress"
+                   aria-valuenow="{{ totals.calories_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar {% if totals.calories_pct > 110 %}bg-danger{% elif totals.calories_pct > 100 %}bg-warning{% endif %}"
+                     style="width: {{ totals.calories_pct|default:0 }}%"></div>
               </div>
               {% if totals.calories|default:0 == 0 %}
                 <p class="text-muted small mb-0 mt-1">No meals logged today yet. Log your first meal to see progress.</p>
               {% endif %}
             </div>
 
-            {# Macros #}
             <div class="row g-3">
               <div class="col-12 col-md-4">
                 <div class="small d-flex justify-content-between mb-1">
                   <span>Protein</span>
                   <span>{{ totals.protein_g|default:0 }} / {{ target.protein_g|default:"—" }} g</span>
                 </div>
-                <div class="progress" role="progressbar" aria-label="Protein progress" aria-valuenow="{{ totals.protein_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress" role="progressbar" aria-label="Protein progress"
+                     aria-valuenow="{{ totals.protein_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
                   <div class="progress-bar" style="width: {{ totals.protein_pct|default:0 }}%"></div>
                 </div>
               </div>
@@ -222,7 +167,8 @@
                   <span>Carbs</span>
                   <span>{{ totals.carbs_g|default:0 }} / {{ target.carbs_g|default:"—" }} g</span>
                 </div>
-                <div class="progress" role="progressbar" aria-label="Carbs progress" aria-valuenow="{{ totals.carbs_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress" role="progressbar" aria-label="Carbs progress"
+                     aria-valuenow="{{ totals.carbs_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
                   <div class="progress-bar" style="width: {{ totals.carbs_pct|default:0 }}%"></div>
                 </div>
               </div>
@@ -231,18 +177,17 @@
                   <span>Fat</span>
                   <span>{{ totals.fat_g|default:0 }} / {{ target.fat_g|default:"—" }} g</span>
                 </div>
-                <div class="progress" role="progressbar" aria-label="Fat progress" aria-valuenow="{{ totals.fat_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress" role="progressbar" aria-label="Fat progress"
+                     aria-valuenow="{{ totals.fat_pct|default:0 }}" aria-valuemin="0" aria-valuemax="100">
                   <div class="progress-bar" style="width: {{ totals.fat_pct|default:0 }}%"></div>
                 </div>
               </div>
             </div>
 
-            {# Doughnut chart (drawn by /static/core/js/nutrition_target.js) #}
             <div class="mt-4">
               <canvas id="macrosChart" height="200" aria-label="Macronutrient breakdown" role="img"></canvas>
             </div>
 
-            {# Non-executing JSON for the external JS #}
             <script id="macros-data" type="application/json">
               {
                 "protein": {{ totals.protein_g|default:0 }},
@@ -258,7 +203,6 @@
         </div>
       </div>
 
-      {# ===================== Today's meals list (from LoggedMeal) ===================== #}
       {% if todays_meals %}
         <div class="card shadow-sm mb-4">
           <div class="card-body">
@@ -284,8 +228,8 @@
         </div>
       {% endif %}
 
-      {# ===================== Recipe suggestions ===================== #}
-      <div class="card shadow-sm">
+      {# Suggestions — tour anchor #}
+      <div class="card shadow-sm" data-tour="targets.suggestions">
         <div class="card-body">
           <h5 class="card-title mb-3">Recipe Suggestions</h5>
           {% if suggestions %}
@@ -294,30 +238,17 @@
                 <div class="col-12 col-md-6">
                   <div class="border rounded p-3 h-100">
                     <div class="d-flex align-items-start gap-3">
-                      {% if r.image or r.image_url %}
-                        <img
-                          src="{{ r.image|default:r.image_url }}"
-                          class="rounded"
-                          alt="{{ r.title }}"
-                          width="72"
-                          height="72"
-                          style="object-fit: cover;"
-                        >
-                      {% endif %}
+                      {% if r.image %}<img src="{{ r.image }}" class="rounded" alt="{{ r.title }}" width="72" height="72" style="object-fit: cover;">{% endif %}
                       <div>
                         <h6 class="mb-1">{{ r.title }}</h6>
                         <div class="small text-muted">
                           {% if r.protein_g %}Protein: {{ r.protein_g }}g · {% endif %}
                           {% if r.calories %}~{{ r.calories }} kcal{% endif %}
                         </div>
-
-                        {# IMPORTANT: include "web" source so recipe_detail can resolve it #}
-                        <a href="{% url 'core:recipe_detail' 'web' r.id %}" class="btn btn-sm btn-outline-primary mt-2">
-                          View
-                        </a>
-
-                        {# Optional CTA: takes user to Discover/recipes section on dashboard #}
-                        <a href="{% url 'core:nutrition_target' %}#quick-log" class="btn btn-sm btn-primary mt-2">Log meal</a>
+                        {# Link to recipe detail (expects session to contain the same 'web' item) #}
+                        <a href="{% url 'core:recipe_detail' 'web' r.id %}" class="btn btn-sm btn-outline-primary mt-2">View</a>
+                        {# Shortcut back to recipe area (your existing behavior) #}
+                        <a href="{% url 'core:dashboard' %}#recipes" class="btn btn-sm btn-primary mt-2">Log meal</a>
                       </div>
                     </div>
                   </div>
@@ -330,13 +261,12 @@
         </div>
       </div>
 
-    </div>{# /RIGHT #}
-  </div>{# /row #}
-</div>{# /container #}
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
-  {# External JS only. (Your global app can enable Bootstrap tooltips if you use them.) #}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script src="{% static 'core/js/nutrition_target.js' %}"></script>
 {% endblock %}

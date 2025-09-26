@@ -1,14 +1,265 @@
-.tour-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.55);
-  z-index: 1040; display: none;
+/* Smart Recipe Tour — tour.css
+   Works with tour.js (no dependencies)
+   -------------------------------------------------------------- */
+
+/* Root tokens (feel free to tweak to match your theme) */
+:root {
+  --sr-z-overlay: 1050;           /* above nav, below modals if you use 1060+ */
+  --sr-color-bg: #ffffff;
+  --sr-color-fg: #222;
+  --sr-color-muted: #6c757d;
+  --sr-color-primary: #0d6efd;    /* Bootstrap primary-ish */
+  --sr-color-spot: rgba(13,110,253,.24);
+  --sr-shadow-lg: 0 10px 30px rgba(0,0,0,.15);
+  --sr-radius: 14px;
+  --sr-gap: 12px;
 }
-.tour-pop {
-  position: absolute; max-width: 340px; background: #fff; border-radius: .5rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,.2); padding: 12px 12px 10px; z-index: 1041;
+
+/* Dark scheme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sr-color-bg: #14171a;
+    --sr-color-fg: #e6e6e6;
+    --sr-color-muted: #a0a6ad;
+    --sr-color-primary: #4da3ff;
+    --sr-color-spot: rgba(77,163,255,.26);
+    --sr-shadow-lg: 0 16px 40px rgba(0,0,0,.45);
+  }
 }
-.tour-pop .tour-text { font-size: .95rem; margin-bottom: .5rem; }
-.tour-pop .tour-actions { display:flex; gap:.5rem; justify-content:flex-end; }
-.tour-highlight {
-  position: absolute; border: 2px solid #0d6efd; border-radius: .75rem; z-index: 1041;
-  box-shadow: 0 0 0 9999px rgba(13,110,253,.15);
+
+/* When the tour is active, prevent layout jumps (no pointer-events block) */
+html.sr-tour-active, html.sr-tour-active body {
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------
+   Overlay (page dim)
+   -------------------------------------------------------------- */
+.sr-tour-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  
+  -webkit-
+  z-index: 2147483600;
+  opacity: 0;
+  transition: opacity .18s ease-out;
+}
+
+html.sr-tour-active .sr-tour-overlay {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------
+   Spotlight (highlight target)
+   -------------------------------------------------------------- */
+.sr-tour-spotlight {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px rgba(0,0,0,.45),
+    0 0 0 2px var(--sr-color-primary),
+    0 10px 24px rgba(13,110,253,.18);
+  background: transparent;
+  transition: top .18s ease, left .18s ease, width .18s ease, height .18s ease;
+  z-index: 2147483601;
+  pointer-events: none;
+}
+
+.sr-tour-tip       { position: fixed; z-index: 2147483602; }
+
+/* Reduce effects if requested */
+@media (prefers-reduced-motion: reduce) {
+  .sr-tour-spotlight {
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------------
+   Tip / Popover
+   -------------------------------------------------------------- */
+.sr-tour-tip {
+  position: fixed;
+  max-width: min(460px, calc(100vw - 24px));
+  background: var(--sr-color-bg);
+  color: var(--sr-color-fg);
+  border-radius: var(--sr-radius);
+  box-shadow: var(--sr-shadow-lg);
+  z-index: 2147483602;
+  padding: 12px;
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+html.sr-tour-active .sr-tour-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-tour-tip {
+    transition: none;
+  }
+}
+
+/* Header */
+.sr-tour-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sr-gap);
+  margin-bottom: 6px;
+}
+
+.sr-tour-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: .2px;
+}
+
+/* Close (×) */
+.sr-tour-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--sr-color-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.sr-tour-close:hover { color: var(--sr-color-fg); background: rgba(0,0,0,.06); }
+@media (prefers-color-scheme: dark) {
+  .sr-tour-close:hover { background: rgba(255,255,255,.06); }
+}
+
+/* Body */
+.sr-tour-body {
+  font-size: .97rem;
+  color: var(--sr-color-fg);
+  margin: 6px 2px 8px;
+}
+.sr-tour-body p { margin: 0 0 .5rem; }
+.sr-tour-body .muted { color: var(--sr-color-muted); }
+
+/* Footer */
+.sr-tour-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sr-gap);
+  margin-top: 6px;
+}
+
+.sr-tour-steps {
+  font-size: .86rem;
+  color: var(--sr-color-muted);
+}
+
+/* Buttons — styled to feel Bootstrap-y, without needing Bootstrap */
+.sr-tour-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sr-tour-actions button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: .92rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+/* Back = secondary */
+.sr-tour-prev {
+  color: var(--sr-color-fg);
+  background: transparent;
+  border-color: rgba(0,0,0,.14);
+}
+.sr-tour-prev:hover {
+  background: rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  .sr-tour-prev { border-color: rgba(255,255,255,.2); }
+  .sr-tour-prev:hover { background: rgba(255,255,255,.08); }
+}
+
+/* Next = primary outline */
+.sr-tour-next {
+  color: var(--sr-color-primary);
+  background: transparent;
+  border-color: var(--sr-color-primary);
+}
+.sr-tour-next:hover {
+  color: #fff;
+  background: var(--sr-color-primary);
+}
+
+/* Done = solid primary */
+.sr-tour-done {
+  color: #fff;
+  background: var(--sr-color-primary);
+  border-color: var(--sr-color-primary);
+}
+.sr-tour-done:hover {
+  filter: brightness(0.95);
+}
+
+/* Disabled buttons */
+.sr-tour-actions button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* When a tour is running, let tips spill over scrolling containers */
+.sr-tour-running .table-responsive,
+.sr-tour-running .table-wrapper,
+.sr-tour-running .content-scroll {
+  overflow: visible !important;
+}
+
+/* --------------------------------------------------------------
+   Small screens
+   -------------------------------------------------------------- */
+@media (max-width: 480px) {
+  .sr-tour-tip {
+    padding: 10px;
+  }
+  .sr-tour-actions button {
+    padding: 8px 10px;
+    font-size: .9rem;
+  }
+}
+
+/* --------------------------------------------------------------
+   High-contrast & accessibility helpers
+   -------------------------------------------------------------- */
+.sr-tour-tip:focus,
+.sr-tour-actions button:focus,
+.sr-tour-close:focus {
+  outline: 2px dashed var(--sr-color-primary);
+  outline-offset: 2px;
+}
+
+/* Make sure overlay never blurs the page */
+.sr-tour-overlay {
+  backdrop-filter: none !important;
+}
+
+/* The “hole” stays transparent – target is fully visible */
+.sr-tour-spotlight {
+  background: transparent !important;
+  pointer-events: none;
+}
+
+/* Lift the active element above the overlay so it can’t look washed out */
+.sr-tour-target {
+  position: relative !important;
+  z-index: 10002 !important;
 }

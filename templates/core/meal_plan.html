@@ -1,85 +1,85 @@
 {% extends "core/base.html" %}
+{% load static %}
+{% block body_attrs %} data-page="meal-plan" {% endblock %}
 {% block title %}Meal Plan{% endblock %}
 
 {% block content %}
-{% now "Y-m-d" as today_str %}
-<div class="mt-3">
-  <!-- Header + week navigation -->
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <h1 class="h5">Week of {{ plan.start_date }}</h1>
+<div class="container my-4">
 
-    <div class="d-flex gap-2">
-      {% with prev=plan.start_date|add:"-7"|date:"Y-m-d" next=plan.start_date|add:"7"|date:"Y-m-d" %}
-        <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:meal_plan' %}?week={{ prev }}">← Prev</a>
-        <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:meal_plan' %}?week={{ next }}">Next →</a>
-      {% endwith %}
-      <a class="btn btn-outline-primary btn-sm" href="{% url 'core:nutrition_target' %}">Set targets</a>
+  {# Page header + week navigation — tour anchor #}
+  <div class="d-flex justify-content-between align-items-center mb-3" data-tour="meal.header">
+    <h2 class="mb-0">Meal Plan</h2>
+    <div class="d-flex align-items-center gap-2" data-tour="meal.nav">
+      {# Previous / Current / Next week controls (your existing links/buttons) #}
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week_start|date:'Y-m-d'|add:'-7 days' }}">← Prev</a>
+      <a class="btn btn-outline-secondary btn-sm" href="?">This week</a>
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week_start|date:'Y-m-d'|add:'+7 days' }}">Next →</a>
     </div>
   </div>
 
-  <div class="table-responsive bg-white rounded-3 shadow-sm p-2">
+  {# Meal plan grid — tour anchor #}
+  <div class="table-responsive bg-white rounded-3 shadow-sm p-2" data-tour="meal.table">
     <table class="table align-middle mb-0">
       <thead>
         <tr>
-          <th class="text-nowrap">Date</th>
-          {% for value, label in slots %}
-            <th>{{ label }}</th>
+          <th class="text-muted small">Date</th>
+          {% for value,label in slots %}
+            <th class="text-muted small text-center">{{ label }}</th>
           {% endfor %}
-          <th class="text-end">Actions</th>
         </tr>
       </thead>
-
       <tbody>
         {% for row in rows %}
-          <tr class="{% if row.date|date:'Y-m-d' == today_str %}tr-today{% endif %}">
-            <td class="text-nowrap">{{ row.date }} ({{ row.date|date:"D" }})</td>
+          <tr>
+            <td class="fw-medium">{{ row.date|date:"D, M j" }}</td>
 
-            {% for m in row.cells %}
+            {# one cell per slot #}
+            {% for meal in row.cells %}
               <td>
-                {% if m %}
-                  {{ m.recipe.title|default:"Untitled" }}
+                {% if meal %}
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="me-2">
+                      <div class="small fw-medium">{{ meal.recipe.title }}</div>
+                      <div class="small text-muted">
+                        {% if meal.recipe and meal.recipe.calories %}~{{ meal.recipe.calories }} kcal{% endif %}
+                      </div>
+                    </div>
+                    <form method="post" action="{% url 'core:meal_delete' meal.id %}" class="ms-2">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-outline-danger" title="Remove">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
                 {% else %}
-                  <em class="text-muted">—</em>
+                  {# Empty slot: inline 'add' form — tour anchor for adding meals #}
+                  <div class="text-end" data-tour="meal.addform">
+                    <form method="post" action="{% url 'core:meal_add' %}" class="d-flex gap-2 align-items-center justify-content-end">
+                      {% csrf_token %}
+                      <input type="hidden" name="date" value="{{ now.date|date:'Y-m-d' }}">
+                      <input type="hidden" name="slot" value="{{ forloop.counter0 }}">
+                      <select name="recipe_id" class="form-select form-select-sm" style="max-width: 260px;">
+                        <option value="" selected disabled>Choose from favorites…</option>
+                        {% for fav in favorites %}
+                          <option value="{{ fav.id }}">{{ fav.title }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn btn-sm btn-primary">Add</button>
+                    </form>
+                  </div>
                 {% endif %}
               </td>
             {% endfor %}
-
-            <td class="text-end">
-              <form method="post" action="{% url 'core:meal_add' %}" class="d-flex gap-2 align-items-center">
-                {% csrf_token %}
-
-                <input type="date"
-                       name="date"
-                       class="form-control form-control-sm"
-                       value="{{ row.date|date:'Y-m-d' }}"
-                       required>
-
-                <select name="slot" class="form-select form-select-sm">
-                  {% for value, label in slots %}
-                    <option value="{{ value }}">{{ label }}</option>
-                  {% endfor %}
-                </select>
-
-                <select name="recipe_id" class="form-select form-select-sm" required>
-                  <option value="">Choose recipe…</option>
-                  {% for fav in favorites %}
-                    <option value="{{ fav.id }}" {% if selected_recipe_id == fav.id %}selected{% endif %}>
-                      {{ fav.title|default:"Untitled" }}
-                    </option>
-                  {% endfor %}
-                </select>
-
-                <button class="btn btn-primary btn-sm">Add</button>
-              </form>
-            </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
 
-    <p class="text-muted small mt-2">
-      Tip: You can preselect a recipe by visiting Favorites and then coming back here.
-    </p>
+  {# Optional small helper — tells users how to link to Targets #}
+  <div class="alert alert-secondary small mt-3">
+    Tip: Meals you add here for <strong>today</strong> are automatically counted in your
+    <a href="{% url 'core:nutrition_target' %}">Targets</a> progress.
   </div>
 </div>
 {% endblock %}

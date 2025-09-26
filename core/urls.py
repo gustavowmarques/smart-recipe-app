@@ -32,7 +32,7 @@ urlpatterns = [
     path("recipes/<str:source>/<int:recipe_id>/", views.recipe_detail, name="recipe_detail"),
 
     # save to favorites for a session-backed result:
-    path("recipes/<str:source>/<int:recipe_id>/save/", views.save_favorite, name="save_favorite"),
+    path("recipes/<str:source>/<slug:recipe_id>/save/", views.save_favorite, name="save_favorite"),
 
     # Favorites (DB-backed)
     path("favorites/", views.favorites_list, name="favorites"),
@@ -43,14 +43,14 @@ urlpatterns = [
     path("recipes/new/", views.recipe_create, name="recipe_create"),
     path("recipes/<int:pk>/edit/", views.recipe_update, name="recipe_update"),
     path("recipes/<int:pk>/delete/", views.recipe_delete, name="recipe_delete"),
-    
+
     # Nutrition targets
     path("targets/", views.nutrition_target_upsert, name="nutrition_target"),
     path("targets/reset/", views.nutrition_target_reset, name="nutrition_target_reset"),
 
     # Meal logging
     path("log-meal/custom/", views.log_custom_meal, name="log_custom_meal"),
-    path("log-meal/<int:recipe_id>/", views.log_recipe_meal, name="log_recipe_meal"),
+    path("log-meal/<slug:recipe_id>/", views.log_recipe_meal, name="log_recipe_meal"),
     path("log-meal/delete/<int:meal_id>/", views.delete_meal, name="delete_meal"),
 
     # Meal plan
