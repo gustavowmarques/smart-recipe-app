@@ -186,9 +186,10 @@ To deploy your own instance on Render:
 To run the automated tests for the application, execute the following command:
 ```bash
 python manage.py test
+```
 Tests are located in the core/tests/ directory and cover models, views, and user authentication flows.
 
-🛡️ Security Highlights
+## 🛡️ Security Highlights
 User Authentication: Secure login and registration using Django's robust auth system.
 
 Data Protection: Password hashing and CSRF protection are enabled by default.
@@ -197,7 +198,7 @@ Permissions: Logic is in place to ensure users can only modify their own content
 
 Production Settings: DEBUG is set to False in the production environment to prevent exposure of sensitive information.
 
-📅 Roadmap / Future Enhancements
+## 📅 Roadmap / Future Enhancements
 [ ] Nutrition API: Integrate an API to fetch and display nutritional information for recipes.
 
 [ ] User Profiles: Create public user profile pages with avatars and recipe collections.

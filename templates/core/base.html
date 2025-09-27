@@ -1,9 +1,12 @@
 {% load static %}
 <!doctype html>
-<html lang="en" data-bs-theme="light">
+<html lang="en" data-bs-theme="light"> 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+   <!-- Helps some browsers render form controls correctly for light/dark -->
+  <meta name="color-scheme" content="light dark">
+
   <title>{% block title %}Smart Recipe{% endblock %}</title>
 
   <!-- Bootstrap CSS -->
@@ -34,93 +37,79 @@
 <body data-page="{{ page_key|default:'' }}"{% block body_attrs %}{% endblock %}>
 
   {% block navbar %}
-  <nav class="navbar navbar-expand-lg bg-white navbar-light border-bottom sticky-top">
+  <nav class="navbar navbar-expand-lg bg-body border-bottom sticky-top">
     <div class="container">
+
+      <!-- Brand -->
       <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
         <img src="{% static 'img/logo.svg' %}" alt="" width="28" height="28">
         <span>Smart Recipe</span>
       </a>
 
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+      <!-- Always-visible dark mode toggle -->
+      <div class="d-flex align-items-center ms-auto me-2 order-lg-3">
+        <div class="form-check form-switch d-flex align-items-center">
+          <input class="form-check-input" type="checkbox" role="switch" id="theme-toggle" aria-label="Toggle dark mode">
+          <label class="form-check-label ms-2 mb-0" for="theme-toggle">Dark</label>
+        </div>
+      </div>
+
+      <!-- Navbar toggler -->
+      <button class="navbar-toggler order-lg-2" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
               aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
 
-      <div class="collapse navbar-collapse" id="mainNav">
+      <!-- Collapsible nav content -->
+      <div class="collapse navbar-collapse order-lg-1" id="mainNav">
         {% with current=request.resolver_match.url_name %}
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link {% if current == 'home' %}active{% endif %}"
-              href="{% url 'core:home' %}"
+            <a class="nav-link {% if current == 'home' %}active{% endif %}" href="{% url 'core:home' %}"
               aria-current="{% if current == 'home' %}page{% endif %}">Home</a>
           </li>
-
           <li class="nav-item">
-            <a class="nav-link {% if current == 'dashboard' %}active{% endif %}"
-              href="{% url 'core:dashboard' %}"
-              aria-current="{% if current == 'dashboard' %}page{% endif %}"
-              data-tour="nav.dashboard">Dashboard</a>
+            <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'core:dashboard' %}"
+              aria-current="{% if current == 'dashboard' %}page{% endif %}" data-tour="nav.dashboard">Dashboard</a>
           </li>
-
           <li class="nav-item">
             <a class="nav-link {% if current == 'favorites' or current == 'favorite_detail' %}active{% endif %}"
               href="{% url 'core:favorites' %}"
               aria-current="{% if current == 'favorites' or current == 'favorite_detail' %}page{% endif %}"
               data-tour="nav.favorites">Favorites</a>
           </li>
-
           <li class="nav-item">
             <a class="nav-link {% if request.path|slice:':10' == '/meal-plan' %}active{% endif %}"
-              href="{% url 'core:meal_plan' %}"
-              data-tour="nav.mealplan">Meal plan</a>
+              href="{% url 'core:meal_plan' %}" data-tour="nav.mealplan">Meal plan</a>
           </li>
-
           <li class="nav-item">
             <a class="nav-link {% if request.path|slice:':7' == '/targets' %}active{% endif %}"
-              href="{% url 'core:nutrition_target' %}"
-              data-tour="nav.targets">Targets</a>
+              href="{% url 'core:nutrition_target' %}" data-tour="nav.targets">Targets</a>
           </li>
-
           <li class="nav-item">
-            <a class="nav-link {% if current == 'about' %}active{% endif %}"
-              href="{% url 'core:about' %}">About</a>
+            <a class="nav-link {% if current == 'about' %}active{% endif %}" href="{% url 'core:about' %}">About</a>
           </li>
-
           <li class="nav-item">
-            <a class="nav-link {% if current == 'contact' %}active{% endif %}"
-              href="{% url 'core:contact' %}">Contact</a>
+            <a class="nav-link {% if current == 'contact' %}active{% endif %}" href="{% url 'core:contact' %}">Contact</a>
           </li>
         </ul>
         {% endwith %}
 
-
+        <!-- Auth controls: only Logout for signed-in users; no guest login/register here -->
         <div class="d-flex align-items-center gap-2">
           {% if user.is_authenticated %}
-            <span class="navbar-text d-none d-lg-inline text-muted me-1">
-              Hi, {{ user.username }}
-            </span>
+            <span class="navbar-text d-none d-lg-inline text-body-secondary me-1">Hi, {{ user.username }}</span>
             <form class="mb-0" method="post" action="{% url 'logout' %}">
               {% csrf_token %}
               <button class="btn btn-outline-danger btn-sm">Logout</button>
             </form>
-          {% else %}
-            {% url 'login' as login_url %}{% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
-            {% if login_url %}
-              <a class="btn btn-outline-secondary btn-sm" href="{{ login_url }}">Login</a>
-            {% endif %}
-
-            {% url 'accounts:register' as register_url %}
-            {% if not register_url %}{% url 'register' as register_url %}{% endif %}
-            {% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
-            {% if register_url %}
-              <a class="btn btn-primary btn-sm" href="{{ register_url }}">Register</a>
-            {% endif %}
           {% endif %}
         </div>
       </div>
     </div>
   </nav>
   {% endblock navbar %}
+
 
   <main class="container mb-5">
     {% for message in messages %}
@@ -138,20 +127,20 @@
             <img src="{% static 'img/logo.svg' %}" alt="" width="32" height="32" class="me-2">
             <span class="fw-semibold fs-5">Smart Recipe</span>
           </a>
-          <p class="text-muted mt-3 mb-2">
+          <p class="text-body-secondary mt-3 mb-2">
             From fridge → recipe in seconds. Save ingredients, get matches, plan meals, and hit your targets.
           </p>
           <div class="d-flex gap-3 fs-5">
-            <a class="text-muted hover-primary" href="https://twitter.com/" target="_blank" rel="noopener" aria-label="X / Twitter">
+            <a class="text-body-secondary hover-primary" href="https://twitter.com/" target="_blank" rel="noopener" aria-label="X / Twitter">
               <i class="bi bi-twitter-x"></i>
             </a>
-            <a class="text-muted hover-primary" href="https://www.instagram.com/" target="_blank" rel="noopener" aria-label="Instagram">
+            <a class="text-body-secondary hover-primary" href="https://www.instagram.com/" target="_blank" rel="noopener" aria-label="Instagram">
               <i class="bi bi-instagram"></i>
             </a>
-            <a class="text-muted hover-primary" href="https://www.linkedin.com/" target="_blank" rel="noopener" aria-label="LinkedIn">
+            <a class="text-body-secondary hover-primary" href="https://www.linkedin.com/" target="_blank" rel="noopener" aria-label="LinkedIn">
               <i class="bi bi-linkedin"></i>
             </a>
-            <a class="text-muted hover-primary" href="https://github.com/gustavowmarques/smart-recipe-app.git" target="_blank" rel="noopener" aria-label="GitHub">
+            <a class="text-body-secondary hover-primary" href="https://github.com/gustavowmarques/smart-recipe-app.git" target="_blank" rel="noopener" aria-label="GitHub">
               <i class="bi bi-github"></i>
             </a>
           </div>
@@ -181,12 +170,12 @@
             <input type="email" class="form-control" placeholder="Your email">
             <button class="btn btn-primary">Subscribe</button>
           </form>
-          <p class="text-muted small mt-2 mb-0">Occasional updates. No spam.</p>
+          <p class="text-body-secondary small mt-2 mb-0">Occasional updates. No spam.</p>
         </div>
       </div>
 
       <hr class="my-4">
-      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center small text-muted">
+      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center small text-body-secondary">
         <div>© {{ now|date:"Y" }} Smart Recipe — All rights reserved.</div>
         <div class="mt-2 mt-sm-0">
           <a class="link-secondary text-decoration-none me-3" href="#">Terms</a>
@@ -199,6 +188,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+
+  <!-- Your dark mode toggle logic -->
+  <script src="{% static 'js/theme-toggle.js' %}"></script>
 
   {% block body_scripts %}
     {{ block.super }}

@@ -10,7 +10,7 @@
   <a href="javascript:history.back()" class="btn btn-link p-0">&larr; Back</a>
 
   <!-- Title -->
-  <h2 class="mt-2 mb-3">{{ recipe.title|default:"Recipe" }}</h2>
+  <h2 class="mt-2 text-body-emphasis mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
   {# --- Save to favorites --- #}
   {% if already_saved %}
@@ -32,7 +32,7 @@
   {% endif %}
 
   <!-- Meta line -->
-  <div class="text-muted small mb-4">
+  <div class="text-body-secondary small mb-4">
     {% if recipe.readyInMinutes %}⏱ {{ recipe.readyInMinutes }} min{% endif %}
     {% if recipe.readyInMinutes and recipe.servings %}&nbsp;·&nbsp;{% endif %}
     {% if recipe.servings %} {{ recipe.servings }} servings{% endif %}
@@ -50,7 +50,7 @@
             <li>{{ line }}</li>
           {% endfor %}
         {% else %}
-          <li class="text-muted">No ingredients provided.</li>
+          <li class="text-body-secondary">No ingredients provided.</li>
         {% endif %}
       </ul>
 
@@ -65,13 +65,13 @@
           {% if recipe.sourceUrl %}
             <li>Open the source link for full step-by-step instructions.</li>
           {% else %}
-            <li class="text-muted">No instructions provided.</li>
+            <li class="text-body-secondary">No instructions provided.</li>
           {% endif %}
         {% endif %}
       </ol>
 
       {% if recipe.summary %}
-        <div class="mt-4 text-muted small">{{ recipe.summary|safe }}</div>
+        <div class="mt-4 text-body-secondary small">{{ recipe.summary|safe }}</div>
       {% endif %}
     </div>
 
@@ -89,7 +89,7 @@
               <li><strong>Fat:</strong> {{ recipe.nutrition.fat_g|default:0 }} g</li>
             </ul>
           {% else %}
-            <p class="text-muted mb-0 small">No nutrition details available for this recipe.</p>
+            <p class="text-body-secondary mb-0 small">No nutrition details available for this recipe.</p>
           {% endif %}
         </div>
       </div>
@@ -98,7 +98,7 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="card-title mb-2">Log this recipe</h5>
-          <p class="text-muted small mb-3">
+          <p class="text-body-secondary small mb-3">
             Logs to today’s totals on your Targets page. Quantity multiplies nutrition per serving.
           </p>
 
@@ -151,7 +151,7 @@
             {% endif %}
           {% endwith %}
 
-          <p class="text-muted small mt-2 mb-0" data-tour="targets.quicklog">
+          <p class="text-body-secondary small mt-2 mb-0" data-tour="targets.quicklog">
             Tip: to change nutrients before logging, use the Quick Log form on the Targets page.
           </p>
         </div>

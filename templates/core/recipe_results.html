@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container py-3">
   <h3 class="mb-3">Recipes</h3>
-  <p class="text-muted">
+  <p class="text-body-secondary">
     Showing <strong>{{ ai_count }}</strong> AI suggestions and <strong>{{ web_count }}</strong> web results.
   </p>
 
@@ -22,7 +22,7 @@
             <div class="d-flex align-items-center justify-content-between mb-2">
               <h6 class="card-title mb-0">{{ r.title }}</h6>
               {% if r.source == 'ai' %}
-                <span class="badge bg-purple" style="background:#6f42c1;">AI</span>
+                <span class="badge bg-purple">AI</span>
               {% else %}
                 <span class="badge bg-primary">Web</span>
               {% endif %}

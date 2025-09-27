@@ -16,16 +16,18 @@
 }
 
 /* Dark scheme */
+:root[data-bs-theme="dark"],
 @media (prefers-color-scheme: dark) {
   :root {
-    --sr-color-bg: #14171a;
-    --sr-color-fg: #e6e6e6;
-    --sr-color-muted: #a0a6ad;
-    --sr-color-primary: #4da3ff;
-    --sr-color-spot: rgba(77,163,255,.26);
-    --sr-shadow-lg: 0 16px 40px rgba(0,0,0,.45);
+  --sr-color-bg: #14171a;
+  --sr-color-fg: #e6e6e6;
+  --sr-color-muted: #a0a6ad;
+  --sr-color-primary: #4da3ff;
+  --sr-color-spot: rgba(77,163,255,.26);
+  --sr-shadow-lg: 0 16px 40px rgba(0,0,0,.45);
   }
 }
+
 
 /* When the tour is active, prevent layout jumps (no pointer-events block) */
 html.sr-tour-active, html.sr-tour-active body {

@@ -5,11 +5,11 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-2">
   <h2 class="mb-0">AI Recipe Ideas{% if kind %} ({{ kind|title }}){% endif %}</h2>
-  <a class="btn btn-outline-secondary btn-sm" href="{% url 'dashboard' %}">Back to Dashboard</a>
+  <a class="btn text-body-emphasis btn-sm" href="{% url 'dashboard' %}">Back to Dashboard</a>
 </div>
 
 {% if pantry %}
-  <p class="text-muted">Based on your pantry: {{ pantry|join:", " }}</p>
+  <p class="text-body-secondary">Based on your pantry: {{ pantry|join:", " }}</p>
 {% endif %}
 
 {% if recipes %}
@@ -27,7 +27,7 @@
           <div class="card-body d-flex flex-column">
             <h5 class="card-title mb-1">{{ r.title }}</h5>
 
-            <div class="small text-muted mb-2">
+            <div class="small text-body-secondary mb-2">
               {% if r.cook_time_minutes %}⏱ {{ r.cook_time_minutes }} min{% endif %}
               {% if r.steps %}{% if r.cook_time_minutes %} &nbsp;·&nbsp; {% endif %}{{ r.steps|length }} steps{% endif %}
             </div>
@@ -42,13 +42,13 @@
 
             {% if r.ingredients %}
               <div class="mb-3">
-                <div class="fw-semibold mb-1 small text-uppercase text-muted">Key ingredients</div>
+                <div class="fw-semibold mb-1 small text-uppercase text-body-secondary">Key ingredients</div>
                 <ul class="ps-3 mb-0">
                   {% for ing in r.ingredients|slice:":4" %}
                     <li class="small">{{ ing }}</li>
                   {% endfor %}
                   {% if r.ingredients|length > 4 %}
-                    <li class="small text-muted">…and {{ r.ingredients|length|add:"-4" }} more</li>
+                    <li class="small text-body-secondary">…and {{ r.ingredients|length|add:"-4" }} more</li>
                   {% endif %}
                 </ul>
               </div>

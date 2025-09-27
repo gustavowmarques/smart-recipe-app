@@ -8,7 +8,7 @@
 
   {# Page header + week navigation — tour anchor #}
   <div class="d-flex justify-content-between align-items-center mb-3" data-tour="meal.header">
-    <h2 class="mb-0">Meal Plan</h2>
+    <h2 class="text-body-emphasis mb-0">Meal Plan</h2>
     <div class="d-flex align-items-center gap-2" data-tour="meal.nav">
       {# Previous / Current / Next week controls (your existing links/buttons) #}
       <a class="btn btn-outline-secondary btn-sm" href="?week={{ week_start|date:'Y-m-d'|add:'-7 days' }}">← Prev</a>
@@ -22,9 +22,9 @@
     <table class="table align-middle mb-0">
       <thead>
         <tr>
-          <th class="text-muted small">Date</th>
+          <th class="text-body-secondary small">Date</th>
           {% for value,label in slots %}
-            <th class="text-muted small text-center">{{ label }}</th>
+            <th class="text-body-secondary small text-center">{{ label }}</th>
           {% endfor %}
         </tr>
       </thead>
@@ -40,7 +40,7 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <div class="me-2">
                       <div class="small fw-medium">{{ meal.recipe.title }}</div>
-                      <div class="small text-muted">
+                      <div class="small text-body-secondary">
                         {% if meal.recipe and meal.recipe.calories %}~{{ meal.recipe.calories }} kcal{% endif %}
                       </div>
                     </div>

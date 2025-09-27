@@ -1,255 +1,148 @@
 {% extends "core/base.html" %}
 {% load static %}
 
-<!--
+<!-- ---------------------------------------------------------------------------
   templates/core/home.html
-  - Extends base (prevents duplicate blocks)
-  - Only one set of Login/Register buttons (in hero)
-  - Restores hero photos using original filenames:
-      static/img/hero/ingredients.jpg
-      static/img/hero/recipe.jpg
-      static/img/hero/meal-plan.jpg
-  - Wires the "Take a tour" button robustly
-  - All comments use HTML style for VS Code
--->
+  - Uses Bootstrap 5.3 color-mode aware utilities for good contrast in light/dark
+  - NO inline <style>; all presentational rules come from theme.css
+  - Hero artwork uses classes defined in theme.css:
+      .hero, .hero--glass, .hero-art, .hero-photo, .hero-photo-a/b/c
+  - Only location that shows guest Login/Register CTAs is this hero
+  - "Take a tour" button (id="startTourBtn") works with your tour.js
+--------------------------------------------------------------------------- -->
 
 {% block title %}Smart Recipe{% endblock %}
 
+<!--  Optional page marker + enables the site tour  -->
 {% block body_attrs %} data-page="home" data-enable-tour="1" {% endblock %}
 
 {% block head_extra %}
+  <!--  Keep tour stylesheet only; no inline CSS here #} -->
   <link rel="stylesheet" href="{% static 'css/tour.css' %}?v=20250925">
-
-  <!-- Lightweight collage styles for the hero images -->
-  <style>
-    .hero-photos {
-      position: relative;
-      min-height: 360px;
-    }
-    .hero-photos .photo {
-      position: absolute;
-      border-radius: 0.75rem;
-      overflow: hidden;
-      box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.1);
-      border: 1px solid rgba(0,0,0,.06);
-    }
-    .hero-photos .photo img {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    /* Layout for three overlapping photos */
-    .hero-photos .photo-a { top: 0; left: 0; width: 52%; height: 72%; transform: rotate(-4deg); z-index: 3; }
-    .hero-photos .photo-b { top: 8%; right: 0; width: 50%; height: 46%; transform: rotate(3deg);  z-index: 2; }
-    .hero-photos .photo-c { bottom: 0; left: 14%; width: 72%; height: 54%; transform: rotate(-1deg); z-index: 1; }
-
-    /* Smaller screens: tighten spacing */
-    @media (max-width: 991.98px) {
-      .hero-photos { min-height: 300px; }
-      .hero-photos .photo-a { width: 58%; height: 60%; }
-      .hero-photos .photo-b { width: 56%; height: 40%; }
-      .hero-photos .photo-c { width: 80%; height: 48%; left: 10%; }
-    }
-  </style>
 {% endblock %}
-
-{% block navbar %}
-<!-- Navbar with NO Login/Register for guests (hero provides the only buttons) -->
-<nav class="navbar navbar-expand-lg bg-white navbar-light border-bottom sticky-top">
-  <div class="container">
-    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'core:home' %}">
-      <img src="{% static 'img/logo.svg' %}" alt="" width="28" height="28">
-      <span>Smart Recipe</span>
-    </a>
-
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-            aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-
-    <div class="collapse navbar-collapse" id="mainNav">
-      {% with current=request.resolver_match.url_name %}
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link {% if current == 'home' %}active{% endif %}"
-             href="{% url 'core:home' %}"
-             aria-current="{% if current == 'home' %}page{% endif %}">Home</a>
-        </li>
-
-        {% if user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link {% if current == 'dashboard' %}active{% endif %}"
-               href="{% url 'core:dashboard' %}"
-               aria-current="{% if current == 'dashboard' %}page{% endif %}"
-               data-tour="nav.dashboard">Dashboard</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if current == 'favorites' or current == 'favorite_detail' %}active{% endif %}"
-               href="{% url 'core:favorites' %}"
-               aria-current="{% if current == 'favorites' or current == 'favorite_detail' %}page{% endif %}"
-               data-tour="nav.favorites">Favorites</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.path|slice:':10' == '/meal-plan' %}active{% endif %}"
-               href="{% url 'core:meal_plan' %}"
-               data-tour="nav.mealplan">Meal plan</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.path|slice:':7' == '/targets' %}active{% endif %}"
-               href="{% url 'core:nutrition_target' %}"
-               data-tour="nav.targets">Targets</a>
-          </li>
-        {% endif %}
-
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}"
-             href="{% url 'core:about' %}">About</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'contact' %}active{% endif %}"
-             href="{% url 'core:contact' %}">Contact</a>
-        </li>
-      </ul>
-      {% endwith %}
-
-      <div class="d-flex align-items-center gap-2">
-        {% if user.is_authenticated %}
-          <span class="navbar-text d-none d-lg-inline text-muted me-1">
-            Hi, {{ user.username }}
-          </span>
-          <form class="mb-0" method="post" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button class="btn btn-outline-danger btn-sm">Logout</button>
-          </form>
-        {% else %}
-          <!-- Intentionally empty: no Login/Register in navbar on home -->
-        {% endif %}
-      </div>
-    </div>
-  </div>
-</nav>
-{% endblock navbar %}
 
 {% block content %}
 
-{% if messages %}
-  <div class="mt-3">
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} mb-2" role="alert">{{ message }}</div>
-    {% endfor %}
-  </div>
-{% endif %}
+  <!--  Flash messages  -->
+  {% if messages %}
+    <div class="mt-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} mb-2" role="alert">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
-<!-- ============================== HERO ============================== -->
-<section class="py-5 py-lg-6">
-  <div class="container">
-    <div class="row align-items-center g-5">
+  <!-- ============================== HERO ============================== -->
+  <section class="py-5 py-lg-6 hero hero--glass">
+    <div class="container">
+      <div class="row align-items-center g-5">
 
-      <!-- Hero text -->
-      <div class="col-12 col-lg-6">
-        <h1 class="display-5 fw-bold mb-3">From fridge → recipe in seconds</h1>
-        <p class="lead text-muted mb-4">
-          Save ingredients, get AI-powered matches, plan meals, and hit your nutrition targets.
-        </p>
+        <!-- Left: headline + actions  -->
+        <div class="col-12 col-lg-6">
+          <h1 class="display-5 fw-semibold text-body-emphasis mb-3">
+            From fridge → recipe in seconds
+          </h1>
+          <p class="lead text-body-secondary mb-4">
+            Save ingredients, get AI-powered matches, plan meals, and hit your nutrition targets.
+          </p>
 
-        <!-- Resolve login & register with fallbacks -->
-        {% url 'login' as login_url %}{% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
-        {% url 'accounts:register' as register_url %}
-        {% if not register_url %}{% url 'register' as register_url %}{% endif %}
-        {% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
+          <!-- Resolve login/register URLs with fallbacks -->
+          {% url 'login' as login_url %}{% if not login_url %}{% url 'account_login' as login_url %}{% endif %}
+          {% url 'accounts:register' as register_url %}
+          {% if not register_url %}{% url 'register' as register_url %}{% endif %}
+          {% if not register_url %}{% url 'account_signup' as register_url %}{% endif %}
 
-        <!-- Hero buttons (ONLY place with Login/Register for guests) -->
-        <div class="d-flex flex-wrap gap-2">
-          <a href="#" id="startTourBtn" class="btn btn-outline-secondary btn-lg">
-            <i class="bi bi-rocket-takeoff me-2"></i>Take a tour
-          </a>
-
-          {% if not user.is_authenticated %}
-            {% if login_url %}
-              <a class="btn btn-primary btn-lg" href="{{ login_url }}">
-                <i class="bi bi-box-arrow-in-right me-2"></i>Login
-              </a>
-            {% endif %}
-            {% if register_url %}
-              <a class="btn btn-outline-primary btn-lg" href="{{ register_url }}">
-                <i class="bi bi-person-plus me-2"></i>Register
-              </a>
-            {% endif %}
-          {% else %}
-            <a class="btn btn-primary btn-lg" href="{% url 'core:dashboard' %}">
-              <i class="bi bi-speedometer2 me-2"></i>Open dashboard
+          <!-- Primary actions (single place with auth CTAs for guests) -->
+          <div class="d-flex flex-wrap gap-2">
+            <a href="#" id="startTourBtn" class="btn btn-outline-secondary btn-lg">
+              <i class="bi bi-rocket-takeoff me-2"></i>Take a tour
             </a>
-          {% endif %}
+
+            {% if not user.is_authenticated %}
+              {% if login_url %}
+                <a class="btn btn-primary btn-lg" href="{{ login_url }}">
+                  <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                </a>
+              {% endif %}
+              {% if register_url %}
+                <a class="btn btn-outline-primary btn-lg" href="{{ register_url }}">
+                  <i class="bi bi-person-plus me-2"></i>Register
+                </a>
+              {% endif %}
+            {% else %}
+              <a class="btn btn-primary btn-lg" href="{% url 'core:dashboard' %}">
+                <i class="bi bi-speedometer2 me-2"></i>Open dashboard
+              </a>
+            {% endif %}
+          </div>
+
+          <p class="text-body-secondary small mt-3 mb-0">
+            No credit card required. You can explore the tour any time.
+          </p>
         </div>
 
-        <p class="text-muted small mt-3 mb-0">
-          No credit card required. You can explore the tour any time.
-        </p>
-      </div>
-
-      <!-- Hero photos (keeps original filenames) -->
-      <div class="col-12 col-lg-6">
-        <div class="hero-photos">
-
-          <div class="photo photo-a">
-            <img src="{% static 'img/hero/ingredients.jpg' %}" alt="Ingredients">
-          </div>
-
-          <div class="photo photo-b">
-            <img src="{% static 'img/hero/recipe.jpg' %}" alt="Recipe preview">
-          </div>
-
-          <div class="photo photo-c">
-            <img src="{% static 'img/hero/meal-plan.jpg' %}" alt="Meal plan preview">
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-  </div>
-</section>
-<!-- ========================== END HERO ============================== -->
-
-<!-- ========================== FEATURE STRIP ========================= -->
-<section class="py-5 border-top">
-  <div class="container">
-    <div class="row g-4">
-      <div class="col-12 col-md-4">
-        <div class="h-100 d-flex">
-          <i class="bi bi-basket2 flex-shrink-0 fs-3 me-3"></i>
-          <div>
-            <h5 class="mb-1">Pantry → Matches</h5>
-            <p class="text-muted mb-0">Store what you have; we’ll match recipes instantly.</p>
+        <!-- --- Right: hero artwork stack ---
+           Uses theme.css classes:
+           .hero-art container + 3 positioned .hero-photo elements (a/b/c)
+         -->
+        <div class="col-12 col-lg-6">
+          <div class="hero-art">
+            <div class="hero-photo hero-photo-a">
+              <img src="{% static 'img/hero/ingredients.jpg' %}" alt="Ingredients" class="w-100 h-100 object-fit-cover">
+            </div>
+            <div class="hero-photo hero-photo-b">
+              <img src="{% static 'img/hero/recipe.jpg' %}" alt="Recipe preview" class="w-100 h-100 object-fit-cover">
+            </div>
+            <div class="hero-photo hero-photo-c">
+              <img src="{% static 'img/hero/meal-plan.jpg' %}" alt="Meal plan preview" class="w-100 h-100 object-fit-cover">
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="h-100 d-flex">
-          <i class="bi bi-calendar-check flex-shrink-0 fs-3 me-3"></i>
-          <div>
-            <h5 class="mb-1">Plan your week</h5>
-            <p class="text-muted mb-0">Build a balanced meal plan with a couple of clicks.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-4">
-        <div class="h-100 d-flex">
-          <i class="bi bi-activity flex-shrink-0 fs-3 me-3"></i>
-          <div>
-            <h5 class="mb-1">Hit your targets</h5>
-            <p class="text-muted mb-0">Track macros and stick to your goals without the faff.</p>
-          </div>
-        </div>
+
       </div>
     </div>
-  </div>
-</section>
-<!-- ====================== END FEATURE STRIP ========================= -->
+  </section>
+  <!-- ============================ END HERO ============================ -->
+
+  <!-- ========================== FEATURE STRIP ========================= -->
+  <section class="py-5 border-top">
+    <div class="container">
+      <div class="row g-4">
+        <div class="col-12 col-md-4">
+          <div class="h-100 d-flex">
+            <i class="bi bi-basket2 flex-shrink-0 fs-3 me-3"></i>
+            <div>
+              <h5 class="mb-1">Pantry → Matches</h5>
+              <p class="text-body-secondary mb-0">Store what you have; we’ll match recipes instantly.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="h-100 d-flex">
+            <i class="bi bi-calendar-check flex-shrink-0 fs-3 me-3"></i>
+            <div>
+              <h5 class="mb-1">Plan your week</h5>
+              <p class="text-body-secondary mb-0">Build a balanced meal plan with a couple of clicks.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="h-100 d-flex">
+            <i class="bi bi-activity flex-shrink-0 fs-3 me-3"></i>
+            <div>
+              <h5 class="mb-1">Hit your targets</h5>
+              <p class="text-body-secondary mb-0">Track macros and stick to your goals without the faff.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ====================== END FEATURE STRIP ========================= -->
 
 {% endblock content %}
 
 {% block body_scripts %}
   {{ block.super }}
+  <!-- Nothing else here; all behavior is in external JS files -->
 {% endblock %}

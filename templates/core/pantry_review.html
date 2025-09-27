@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="container my-4">
-  <h2 class="h5 mb-3">Review extracted items</h2>
+  <h2 class="h5 text-body-emphasis mb-3">Review extracted items</h2>
 
   {% if messages %}
     {% for message in messages %}
@@ -43,7 +43,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="4" class="text-muted py-4 text-center">
+            <td colspan="4" class="text-body-secondary py-4 text-center">
               We couldn’t find items in that image. You can manually fill the rows below and save.
             </td>
           </tr>

@@ -1,94 +1,92 @@
-/* Global theme tweaks (Bootstrap 5) */
-:root{
-  /* brand */
-  --bs-primary: #2563EB;       /* indigo-500 */
-  --bs-success: #16a34a;       /* green-600 */
+/* =========================
+   1) Global brand + tokens
+   ========================= */
+:root {
+  /* Brand palette (stays the same in both themes; Bootstrap adapts derived tokens) */
+  --bs-primary: #2563EB;     /* indigo-500 */
+  --bs-success: #16a34a;     /* green-600 */
   --bs-danger:  #E11D48;
-  --bs-accent: #10B981;
+  --bs-accent:  #10B981;
+
+  /* Soft surface tint for light mode sections */
   --bs-surface: #F6F7FB;
 
-  /* typography & radii */
+  /* Typography + radii + elevation */
   --bs-body-font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  --bs-border-radius: .75rem;          /* cards/buttons a bit rounder */
+  --bs-border-radius: .75rem;         /* slightly rounder */
   --bs-border-radius-lg: 1rem;
   --bs-box-shadow-sm: 0 2px 8px rgba(0,0,0,.06);
   --bs-box-shadow:    0 8px 30px rgba(0,0,0,.07);
 
-  /* — Page background (LIGHT) — */
-  --bg-start: #f8fafc;   /* very light slate */
-  --bg-tint-a: #eef2ff;  /* indigo-50 */
-  --bg-tint-b: #ecfdf5;  /* emerald-50 */
+  /* ---- Page background (LIGHT) ---- */
+  --bg-start:  #f8fafc;   /* very light slate */
+  --bg-tint-a: #eef2ff;   /* indigo-50 */
+  --bg-tint-b: #ecfdf5;   /* emerald-50 */
 
-  /* multi-layer gradient used site-wide */
+  /* Multi-layer gradient used site-wide (LIGHT) */
   --page-bg-grad:
-    radial-gradient(1200px 600px at 0% 0%,   var(--bg-tint-a) 0%, transparent 60%),
+    radial-gradient(1200px 600px at 0% 0%,    var(--bg-tint-a) 0%, transparent 60%),
     radial-gradient(1200px 600px at 100% 100%, var(--bg-tint-b) 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-start) 0%, #f6f7fb 100%);
 }
 
-/* Apply gradient to whole page (perf-friendly on mobile) */
-body{
-  background: var(--page-bg-grad);
-  background-repeat: no-repeat;
-  background-attachment: scroll; /* keep smooth on mobile */
-}
-
-/* Small helpers */
-.recipe-badge { position:absolute; top:.5rem; left:.5rem; z-index: 2; }
-.tr-today { background: rgba(37,99,235,.06); }
-
-/* ---- Dark theme (opt-in with .theme-dark on <body>) ---- */
-.theme-dark{
-  /* DARK gradient variables */
+/* =========================
+   2) Theme-aware overrides
+   ========================= */
+/* Dark-mode variables: only when Bootstrap sets data-bs-theme="dark" on <html> */
+:root[data-bs-theme="dark"] {
+  /* Page background (DARK) */
   --bg-dark-1: #0f1115;
   --bg-dark-2: #0c0f16;
   --bg-dark-tint-a: rgba(37,99,235,.15);
   --bg-dark-tint-b: rgba(16,185,129,.12);
 
   --page-bg-grad:
-    radial-gradient(1200px 600px at 0% 0%,   var(--bg-dark-tint-a) 0%, transparent 60%),
+    radial-gradient(1200px 600px at 0% 0%,    var(--bg-dark-tint-a) 0%, transparent 60%),
     radial-gradient(1200px 600px at 100% 100%, var(--bg-dark-tint-b) 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-dark-1) 0%, var(--bg-dark-2) 100%);
-
-  --bs-body-color: #e8eaf2;
-  --bs-body-bg: transparent; /* gradient handles it */
 }
-.theme-dark body{ background: var(--page-bg-grad); }
-.theme-dark .card,
-.theme-dark .table,
-.theme-dark .empty { background:#141926; color:var(--bs-body-color); }
-.theme-dark .table thead { background:#0f1420; }
-.theme-dark .navbar,
-.theme-dark .bg-white { background:#0f1420 !important; }
 
-/* Hero readability in dark */
-.theme-dark .hero {
-  background: linear-gradient(135deg, rgba(37,99,235,.20), rgba(16,185,129,.14));
+/* Apply the gradient to the whole page. We don’t hard-set body/bg colors; let Bootstrap do it. */
+body {
+  background: var(--page-bg-grad);
+  background-repeat: no-repeat;
+  background-attachment: scroll; /* smoother on mobile */
 }
-.theme-dark .hero h1,
-.theme-dark .hero .lead { color:#eef3ff; text-shadow:0 1px 2px rgba(0,0,0,.45); }
-.theme-dark .hero-art .hero-photo { filter: brightness(.8) contrast(1.05); }
 
-/* Badges, alerts, outlines with better contrast */
-.theme-dark .badge.bg-primary-subtle { background:rgba(37,99,235,.25) !important; color:#cfe0ff !important; }
-.theme-dark .alert-success { background:#113a20; border-color:#1e6d3a; color:#c9f8d9; }
-.theme-dark .btn-outline-primary { color:#bcd3ff; border-color:#2b5bbf; }
+/* =========================
+   3) Small helpers
+   ========================= */
+.recipe-badge { position: absolute; top: .5rem; left: .5rem; z-index: 2; }
+.tr-today     { background: rgba(37,99,235,.06); }
 
-.skeleton{ background: linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%); background-size: 400% 100%; animation: sk 1.2s ease-in-out infinite; }
-@keyframes sk { 0%{background-position: 100% 0} 100%{background-position: 0 0} }
+.skeleton {
+  background: linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%);
+  background-size: 400% 100%;
+  animation: sk 1.2s ease-in-out infinite;
+}
+@keyframes sk { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
 .skeleton.card{ height: 260px; border-radius: var(--bs-border-radius); }
 
-/* Cards */
-.card { border: 0; box-shadow: var(--bs-box-shadow-sm); background:#fff; }
+/* =========================
+   4) Components (theme-safe)
+   ========================= */
+/* Cards: use tokens so dark mode inherits correct colors */
+.card {
+  border: 0;
+  box-shadow: var(--bs-box-shadow-sm);
+  background: var(--bs-card-bg, var(--bs-body-bg));
+  color: var(--bs-card-color, var(--bs-body-color));
+}
 .card-header { border-bottom: 0; }
 
-/* Buttons: slightly bolder */
+/* Buttons: slightly bolder text */
 .btn { font-weight: 600; }
 
-/* Section titles */
-h1,h2,h3,h4 { letter-spacing: .1px; }
+/* Headings */
+h1, h2, h3, h4 { letter-spacing: .1px; }
 
-/* “Hero” strip (home/dashboard top) */
+/* Dashboard strip */
 .dashboard-hero {
   background: linear-gradient(135deg, rgba(37,99,235,.10), rgba(16,185,129,.08));
   border: 1px solid rgba(37,99,235,.12);
@@ -96,23 +94,24 @@ h1,h2,h3,h4 { letter-spacing: .1px; }
 }
 
 /* ===== Hero (home) ===== */
-.hero{
+.hero {
   background: linear-gradient(135deg, rgba(37,99,235,.08), rgba(16,185,129,.08));
   border: 1px solid rgba(37,99,235,.12);
 }
 
-/* (2) Optional “glass” hero that blends with the gradient */
+/* Optional “glass” hero that blends with the gradient */
 .hero--glass{
   background: rgba(255,255,255,.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(37,99,235,.08);
 }
-.theme-dark .hero--glass{
+:root[data-bs-theme="dark"] .hero--glass{
   background: rgba(15,17,21,.55);
   border-color: rgba(255,255,255,.08);
 }
 
+/* Hero artwork stack */
 .hero-art{
   position: relative;
   min-height: 260px;               /* ensures room for the stack */
@@ -124,8 +123,10 @@ h1,h2,h3,h4 { letter-spacing: .1px; }
   background-position: center;
   border-radius: 1rem;
   box-shadow: 0 10px 30px rgba(0,0,0,.12);
-  outline: 4px solid rgba(255,255,255,.85);  /* white frame for separation */
+  outline: 4px solid rgba(255,255,255,.85);  /* light frame for separation */
 }
+/* In dark, reduce the photo frame brightness for better balance */
+:root[data-bs-theme="dark"] .hero-photo { outline-color: #0f1115; }
 
 /* Back (largest) */
 .hero-photo-a{
@@ -162,9 +163,13 @@ h1,h2,h3,h4 { letter-spacing: .1px; }
 .lift:hover { transform: translateY(-4px); box-shadow: var(--bs-box-shadow); }
 
 .card-img-overlay-gradient{
-  position:absolute;
-  inset:0;
+  position: absolute;
+  inset: 0;
   background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.28));
+}
+/* Slightly stronger overlay in dark for legibility on images */
+:root[data-bs-theme="dark"] .card-img-overlay-gradient{
+  background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.40));
 }
 
 /* Utilities */
@@ -176,70 +181,67 @@ h1,h2,h3,h4 { letter-spacing: .1px; }
 }
 .object-fit-cover{ object-fit:cover; }
 
-/* Empty states */
+/* Empty states (use tokens so they adapt) */
 .empty {
-  border: 1px dashed rgba(0,0,0,.15);
-  background: #fff;
+  border: 1px dashed var(--bs-body-color);
+  background: var(--bs-card-bg, var(--bs-body-bg));
+  color: var(--bs-body-color);
   border-radius: var(--bs-border-radius);
   padding: 1rem .75rem;
 }
-
-/* Table polish */
+/* Slightly stronger hover row background in both themes using primary tint */
 .table > :not(caption) > * > * { padding-top: .9rem; padding-bottom: .9rem; }
 .table thead th { font-weight: 600; }
-
-/* Hover affordances */
 tr:hover td { background: rgba(37,99,235,.03); }
+:root[data-bs-theme="dark"] tr:hover td { background: rgba(37,99,235,.09); }
+
 
 /* Small helper for icon bullets */
 .li-icon { list-style: none; padding-left: 0; }
 .li-icon li { display:flex; gap:.5rem; align-items:flex-start; margin:.25rem 0; }
 .li-icon li i { color: var(--bs-primary); margin-top:.2rem; }
 
-/* System dark scheme support (kept, now gradient-based) */
-@media (prefers-color-scheme: dark) {
-  :root{
-    --bg-dark-1: #0f1115;
-    --bg-dark-2: #0c0f16;
-    --bg-dark-tint-a: rgba(37,99,235,.15);
-    --bg-dark-tint-b: rgba(16,185,129,.12);
-
-    --page-bg-grad:
-      radial-gradient(1200px 600px at 0% 0%,   var(--bg-dark-tint-a) 0%, transparent 60%),
-      radial-gradient(1200px 600px at 100% 100%, var(--bg-dark-tint-b) 0%, transparent 60%),
-      linear-gradient(180deg, var(--bg-dark-1) 0%, var(--bg-dark-2) 100%);
-    --bs-body-color: #e7e9ee;
-    --bs-body-bg: transparent;
-  }
-  .card, .table, .empty { background:#151924; color:#e7e9ee; }
-  .table thead { background: #111422; }
-  tr:hover td { background: rgba(37,99,235,.09); }
-
-  /* Dark hero tweaks */
-  .hero{
-    background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(16,185,129,.14));
-    border-color: rgba(37,99,235,.20);
-  }
-  .hero-photo{ border-color: #0f1115; }
-  .card-img-overlay-gradient{
-    background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.40));
-  }
-}
-
-/* ---- Footer ---- */
+/* =========================
+   5) Footer
+   ========================= */
 .site-footer{
-  background: #fff;
-  border-top: 1px solid rgba(0,0,0,.06);
+  background: var(--bs-body-bg);
+  border-top: 1px solid var(--bs-border-color); 
 }
-.site-footer .link-secondary{ color: #6b7280; }
+
+/* Let .link-secondary use Bootstrap’s own color in each theme */
 .site-footer .link-secondary:hover{ color: var(--bs-primary); }
+
 .hover-primary:hover{ color: var(--bs-primary) !important; }
 
-@media (prefers-color-scheme: dark){
-  /* if you’re using theme toggle, .theme-dark also applies */
+/* Softer border + lighter links in dark mode */
+:root[data-bs-theme="dark"] .site-footer{
+  border-top-color: var(--bs-body-color);
 }
-.theme-dark .site-footer{
-  background: #0f1420;
-  border-top-color: rgba(255,255,255,.08);
+:root[data-bs-theme="dark"] .site-footer .link-secondary{
+  color: #9aa4b2;
 }
-.theme-dark .site-footer .link-secondary{ color: #9aa4b2; }
+
+/* Contrast nudges for dark mode */
+:root[data-bs-theme="dark"] {
+  /* Slightly brighter default text */
+  --bs-body-color: #e6eaee;
+
+  /* Headings pop a bit more */
+  --bs-heading-color: #ffffff;
+
+  /* Softer borders so sections/cards are still visible */
+  --bs-border-color: #2d333a;
+
+  /* Cards slightly darker than body to avoid the “washed” look */
+  --bs-card-bg: #12161b;
+  --bs-card-color: var(--bs-body-color);
+
+  /* Secondary/deemphasized text that remains readable */
+  --bs-secondary-color: #bdc6cf;
+}
+
+/* If any paragraphs still look too faint, this guarantees readability */
+:root[data-bs-theme="dark"] .text-body-secondary {
+  color: var(--bs-secondary-color) !important;
+}

@@ -13,7 +13,7 @@
   {% endif %}
 
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Nutrition Targets</h2>
+    <h2 class="text-body-emphasis mb-0">Nutrition Targets</h2>
     <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">← Back to Dashboard</a>
   </div>
 
@@ -30,7 +30,7 @@
             <div class="mb-2">
               <label for="calories" class="form-label">
                 Calories (kcal)
-                <span class="text-muted" data-bs-toggle="tooltip" title="Total energy per day.">ⓘ</span>
+                <span class="text-body-secondary" data-bs-toggle="tooltip" title="Total energy per day.">ⓘ</span>
               </label>
               <input type="number" min="0" class="form-control" id="calories" name="calories"
                      value="{{ target.calories|default_if_none:'' }}" placeholder="2000" required>
@@ -41,7 +41,7 @@
               <div class="col-4">
                 <label for="protein_g" class="form-label">
                   Protein (g)
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily protein target.">ⓘ</span>
+                  <span class="text-body-secondary" data-bs-toggle="tooltip" title="Daily protein target.">ⓘ</span>
                 </label>
                 <input type="number" min="0" class="form-control" id="protein_g" name="protein_g"
                        value="{{ target.protein_g|default_if_none:'' }}" placeholder="140">
@@ -49,7 +49,7 @@
               <div class="col-4">
                 <label for="carbs_g" class="form-label">
                   Carbs (g)
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily carbohydrates.">ⓘ</span>
+                  <span class="text-body-secondary" data-bs-toggle="tooltip" title="Daily carbohydrates.">ⓘ</span>
                 </label>
                 <input type="number" min="0" class="form-control" id="carbs_g" name="carbs_g"
                        value="{{ target.carbs_g|default_if_none:'' }}" placeholder="200">
@@ -57,7 +57,7 @@
               <div class="col-4">
                 <label for="fat_g" class="form-label">
                   Fat (g)
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Daily fats.">ⓘ</span>
+                  <span class="text-body-secondary" data-bs-toggle="tooltip" title="Daily fats.">ⓘ</span>
                 </label>
                 <input type="number" min="0" class="form-control" id="fat_g" name="fat_g"
                        value="{{ target.fat_g|default_if_none:'' }}" placeholder="70">
@@ -125,7 +125,7 @@
               <button class="btn btn-sm btn-primary w-100">Log meal</button>
             </div>
           </form>
-          <p class="text-muted small mt-2 mb-0">Tip: Use this for anything not from a saved recipe.</p>
+          <p class="text-body-secondary small mt-2 mb-0">Tip: Use this for anything not from a saved recipe.</p>
         </div>
       </div>
 
@@ -147,7 +147,7 @@
                      style="width: {{ totals.calories_pct|default:0 }}%"></div>
               </div>
               {% if totals.calories|default:0 == 0 %}
-                <p class="text-muted small mb-0 mt-1">No meals logged today yet. Log your first meal to see progress.</p>
+                <p class="text-body-secondary small mb-0 mt-1">No meals logged today yet. Log your first meal to see progress.</p>
               {% endif %}
             </div>
 
@@ -212,8 +212,8 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                   <div>
                     <strong class="me-2">{{ m.title }}</strong>
-                    <span class="text-muted small">{{ m.meal_type|capfirst }}</span>
-                    <div class="small text-muted">
+                    <span class="text-body-secondary small">{{ m.meal_type|capfirst }}</span>
+                    <div class="small text-body-secondary">
                       {{ m.calories }} kcal · P {{ m.protein_g }}g · C {{ m.carbs_g }}g · F {{ m.fat_g }}g
                     </div>
                   </div>
@@ -241,7 +241,7 @@
                       {% if r.image %}<img src="{{ r.image }}" class="rounded" alt="{{ r.title }}" width="72" height="72" style="object-fit: cover;">{% endif %}
                       <div>
                         <h6 class="mb-1">{{ r.title }}</h6>
-                        <div class="small text-muted">
+                        <div class="small text-body-secondary">
                           {% if r.protein_g %}Protein: {{ r.protein_g }}g · {% endif %}
                           {% if r.calories %}~{{ r.calories }} kcal{% endif %}
                         </div>
@@ -256,7 +256,7 @@
               {% endfor %}
             </div>
           {% else %}
-            <p class="text-muted mb-0">No suggestions yet. Save targets and log meals to unlock tailored ideas.</p>
+            <p class="text-body-secondary mb-0">No suggestions yet. Save targets and log meals to unlock tailored ideas.</p>
           {% endif %}
         </div>
       </div>
