@@ -13,23 +13,37 @@
   <h2 class="mt-2 text-body-emphasis mb-3">{{ recipe.title|default:"Recipe" }}</h2>
 
   {# --- Save to favorites --- #}
-  {% if already_saved %}
-    <a href="{% url 'core:favorites' %}" class="btn btn-outline-secondary btn-sm">
-      ✓ In Favorites
-    </a>
-  {% else %}
-    {% if source == 'web' and recipe_id %}
-      <form method="post" action="{% url 'core:save_favorite' 'web' recipe_id %}" class="d-inline">
-        {% csrf_token %}
-        <button class="btn btn-primary btn-sm">Save to Favorites</button>
-      </form>
-    {% endif %}
+  <div class="mb-3">
+    {% if already_saved %}
+      <a href="{% url 'core:favorites' %}" class="btn btn-outline-secondary btn-sm">
+        ✓ In Favorites
+      </a>
+    {% else %}
+      {# Works for both AI and Web recipes #}
+      {% if current_id_str %}
+        <form method="post" 
+              action="{% url 'core:save_favorite' source current_id_str %}" 
+              class="d-inline">
+          {% csrf_token %}
+          <button class="btn btn-primary btn-sm">
+            <i class="bi bi-heart"></i> Save to Favorites
+          </button>
+        </form>
+      {% endif %}
+
+  </div>
+
   {% endif %}
 
   <!-- Hero image -->
-  {% if recipe.image %}
-    <img src="{{ recipe.image }}" alt="{{ recipe.title }}" class="img-fluid rounded shadow-sm mb-4">
-  {% endif %}
+{% if image_url_final %}
+  <img
+    src="{{ image_url_final }}"
+    alt="{% firstof recipe.title recipe.name current_id_str 'Recipe image' %}"
+    class="img-fluid rounded shadow-sm mb-4">
+{% endif %}
+
+
 
   <!-- Meta line -->
   <div class="text-body-secondary small mb-4">
@@ -43,32 +57,30 @@
     <!-- LEFT: Ingredients & Instructions -->
     <div class="col-12 col-lg-8">
       <!-- Ingredients -->
-      <h4 class="mb-2">Ingredients</h4>
-      <ul class="ps-3">
-        {% if display_ingredients %}
-          {% for line in display_ingredients %}
+      <h3>Ingredients</h3>
+      {% if ingredients_list %}
+        <ul>
+          {% for line in ingredients_list %}
             <li>{{ line }}</li>
           {% endfor %}
-        {% else %}
-          <li class="text-body-secondary">No ingredients provided.</li>
-        {% endif %}
-      </ul>
+        </ul>
+      {% else %}
+        <p class="text-body-secondary">No ingredients provided.</p>
+      {% endif %}
+
 
       <!-- Instructions -->
-      <h4 class="mt-4 mb-2">Instructions</h4>
-      <ol class="ps-3">
-        {% if display_steps %}
-          {% for s in display_steps %}
-            <li>{{ s }}</li>
+      <h3>Instructions</h3>
+      {% if steps_list %}
+        <ol class="mb-3">
+          {% for step in steps_list %}
+            <li>{{ step }}</li>
           {% endfor %}
-        {% else %}
-          {% if recipe.sourceUrl %}
-            <li>Open the source link for full step-by-step instructions.</li>
-          {% else %}
-            <li class="text-body-secondary">No instructions provided.</li>
-          {% endif %}
-        {% endif %}
-      </ol>
+        </ol>
+      {% else %}
+        <p class="text-body-secondary">No instructions provided.</p>
+      {% endif %}
+
 
       {% if recipe.summary %}
         <div class="mt-4 text-body-secondary small">{{ recipe.summary|safe }}</div>

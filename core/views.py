@@ -52,6 +52,7 @@ from .models import (
     PantryImageUpload,
     LoggedMeal,
 )
+
 from .forms import (
     IngredientForm,
     SavedRecipeForm,
@@ -1542,14 +1543,20 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     Show detail for a result stored in session.
     If it's an AI recipe and it has no image yet, fetch a representative image
     (Spoonacular) and optionally cache it to our storage (S3/local).
+
+    Also computes `already_saved` so the template can render:
+      - "Add to favorites" (POST to save)
+      - or "In favorites" / remove link
     """
-    key = rid if rid is not None else recipe_id
+    # ----- identify this recipe in your session/results bundle -----
+    key = rid if rid is not None else recipe_id  # can be string or int
+    key_str = str(key) if key is not None else ""
 
     recipe = _get_session_recipe(source, key, request)
     if not recipe:
         raise Http404("Recipe not found in session (maybe results expired).")
 
-    # Best-effort image for AI items with no image yet
+    # ----- Best-effort image for AI items with no image yet -----
     try:
         if source == "ai" and not (recipe.get("image_url") or recipe.get("image")):
             title = (recipe.get("title") or recipe.get("name") or "").strip()
@@ -1564,7 +1571,7 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                     for list_name in ("combined", "ai"):
                         lst = bundle.get(list_name) or []
                         for it in lst:
-                            if str(it.get("id")) == str(key):
+                            if str(it.get("id")) == key_str:
                                 it["image_url"] = final_url
                                 it["image"] = final_url
                     request.session["recipe_results"] = bundle
@@ -1650,7 +1657,6 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                 "Refrigerate in an airtight container."
             ])
         else:
-            # Generic catch-all for simple AI recipes
             steps_list = make([
                 "Prep ingredients (wash, peel, chop as needed).",
                 "Combine and season to taste.",
@@ -1658,93 +1664,107 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                 "Serve."
             ])
 
+    # ---------------------------------------------------------------------
+    # Already-saved state (use SavedRecipe directly)
+    # ---------------------------------------------------------------------
+    already_saved = False
+    favorite_pk = None
+    if request.user.is_authenticated and key_str:
+        qs = SavedRecipe.objects.filter(
+            user=request.user,
+            source=source,
+            external_id=key_str,
+        )
+        if qs.exists():
+            already_saved = True
+            favorite_pk = qs.values_list("pk", flat=True).first()
 
-    # ---- Ingredients (explicit lists or derive from step-ingredients) ----
-    explicit_ings = (
-        recipe.get("ingredients")
-        or recipe.get("extendedIngredients")
-        or meta.get("extendedIngredients")
-        or []
+    # -------- Normalize data for the template (image + ingredients) --------
+    image_url_final = (
+        recipe.get("image")
+        or recipe.get("image_url")
+        or meta.get("image")
+        or meta.get("image_url")
+        or recipe.get("thumbnail")
     )
 
-    display_ingredients: list[str] = []
-    if explicit_ings:
-        for i in explicit_ings:
-            if isinstance(i, dict) and i.get("original"):
-                display_ingredients.append(i["original"])
-            elif isinstance(i, dict):
-                name = i.get("name") or ""
-                amt = i.get("amount")
-                unit = i.get("unit")
-                if name and (amt or unit):
-                    display_ingredients.append(f"{amt or ''} {unit or ''} {name}".strip())
-                elif name:
-                    display_ingredients.append(name)
-            elif isinstance(i, str):
-                display_ingredients.append(i)
-    else:
-        names, seen = [], set()
-        for s in (ai[0].get("steps") if isinstance(ai, list) and ai else []) or []:
-            for ing in s.get("ingredients", []):
-                nm = (
-                    ing.get("original")
-                    or ing.get("originalName")
-                    or ing.get("localizedName")
-                    or ing.get("name")
-                    or ""
-                ).strip()
-                key_nm = nm.lower()
-                if nm and key_nm not in seen:
-                    seen.add(key_nm)
-                    names.append(nm)
-        display_ingredients = names
+    ingredients_list: list[str] = []
+    ext = recipe.get("extendedIngredients") or meta.get("extendedIngredients") or []
+    if isinstance(ext, list) and ext:
+        for it in ext:
+            if isinstance(it, dict):
+                txt = (it.get("original") or it.get("name") or "").strip()
+                if txt:
+                    ingredients_list.append(txt)
+    if not ingredients_list:
+        alt_ing = recipe.get("ingredients") or meta.get("ingredients")
+        if isinstance(alt_ing, list):
+            ingredients_list = [s.strip() for s in alt_ing if isinstance(s, str) and s.strip()]
 
-    # ---- Normalize a few fields for the template ----
-    normalized = {
-        **recipe,
-        "title": recipe.get("title") or meta.get("title"),
-        "image": recipe.get("image_url") or recipe.get("image") or meta.get("image"),
-        "readyInMinutes": recipe.get("readyInMinutes") or meta.get("readyInMinutes"),
-        "servings": recipe.get("servings") or meta.get("servings"),
-        "sourceUrl": recipe.get("url") or meta.get("sourceUrl"),
-        "summary": recipe.get("summary") or meta.get("summary"),
-    }
-
-    external_id = str(key)
-    already_saved = SavedRecipe.objects.filter(
-        user=request.user, source=source, external_id=external_id
-    ).exists()
-
-    context = {
-        "recipe": normalized,
-        "display_steps": steps_list,
-        "display_ingredients": display_ingredients,
-        "source": source,
-        "already_saved": already_saved,
-    }
-    logger.info("DETAIL DEBUG: steps=%s ings=%s", len(steps_list), len(display_ingredients))
-    return render(request, "core/recipe_detail.html", context)
-
+    # ---------------------------------------------------------------------
+    # Render
+    # ---------------------------------------------------------------------
+    return render(
+        request,
+        "core/recipe_detail.html",
+        {
+            "recipe": recipe,
+            "recipe_id": recipe_id,
+            "rid": rid,
+            "source": source,
+            "steps_list": steps_list,
+            "ingredients_list": ingredients_list,
+            "image_url_final": image_url_final,
+            "already_saved": already_saved,
+            "favorite_pk": favorite_pk,
+            "current_id_str": key_str,
+        },
+    )
 
 @login_required
 def favorite_detail(request, pk: int):
+    """
+    Show a saved recipe using the SAME template as live details.
+    Provides the normalized fields the template expects.
+    """
     fav = get_object_or_404(SavedRecipe, pk=pk, user=request.user)
-    ingredients = fav.ingredients_json or []
-    steps = fav.steps_json or []
+
+    # Minimal recipe dict for title + alt text
     recipe = {
-        "id": fav.external_id or fav.pk,
-        "title": fav.title or "Recipe",
+        "title": fav.title or "",
+        "name": fav.title or "",
+        "image": fav.image_url or "",
         "image_url": fav.image_url or "",
-        "ingredients": ingredients,
-        "extendedIngredients": ingredients,
-        "steps": steps if isinstance(steps, list) else [],
-        "instructions": "\n".join(steps) if isinstance(steps, list) else (steps or ""),
-        "usedIngredients": [],
-        "missedIngredients": [],
-        "readyInMinutes": None,
-        "servings": None,
+        "url": getattr(fav, "source_url", None),
     }
-    return render(request, "core/recipe_detail.html", {"recipe": recipe, "source": fav.source, "already_saved": True})
+
+    # Normalized fields (match recipe_detail view)
+    image_url_final = fav.image_url or ""
+    ingredients_list = []
+    steps_list = []
+
+    if isinstance(getattr(fav, "ingredients_json", None), list):
+        ingredients_list = [s.strip() for s in fav.ingredients_json if isinstance(s, str) and s.strip()]
+
+    if isinstance(getattr(fav, "steps_json", None), list):
+        steps_list = [s.strip() for s in fav.steps_json if isinstance(s, str) and s.strip()]
+
+    return render(
+        request,
+        "core/recipe_detail.html",
+        {
+            "recipe": recipe,
+            "recipe_id": None,
+            "rid": None,
+            "source": fav.source,           # "web" or "ai"
+            "steps_list": steps_list,
+            "ingredients_list": ingredients_list,
+            "image_url_final": image_url_final,
+            "already_saved": True,          # it's a favorite
+            "favorite_pk": fav.pk,
+            "current_id_str": fav.external_id,  # identifier for future actions
+        },
+    )
 
 @login_required
 @require_POST
@@ -1752,8 +1772,10 @@ def save_favorite(request, source, recipe_id):
     """
     Save the current AI/Web recipe (from session) into SavedRecipe.
     Works with AI slugs and numeric web IDs. Idempotent via (user, source, external_id).
+    Also mirrors the instruction fallbacks used in the detail view so AI items
+    reliably store steps.
     """
-    # Normalize/validate source
+    # Validate source
     if source not in {"ai", "web"}:
         messages.error(request, "Unknown recipe source.")
         return redirect("core:dashboard")
@@ -1778,7 +1800,7 @@ def save_favorite(request, source, recipe_id):
         or recipe.get("extended_ingredients")
         or []
     )
-    ingredients = []
+    ingredients: list[str] = []
     if isinstance(ingredients_raw, list):
         if ingredients_raw and isinstance(ingredients_raw[0], dict):
             # Spoonacular-like dicts
@@ -1791,18 +1813,33 @@ def save_favorite(request, source, recipe_id):
     elif ingredients_raw:
         ingredients = [str(ingredients_raw).strip()]
 
-    # ---- Steps (accept string, list[str], or analyzedInstructions) ----
+    # ---- Steps (mirror detail view fallbacks; handle strings, lists, analyzedInstructions) ----
+    meta_obj = recipe.get("meta") or {}
+
     steps_raw = (
         recipe.get("steps")
         or recipe.get("instructions")
         or recipe.get("analyzedInstructions")
+        or recipe.get("method")
+        or recipe.get("directions")
+        or recipe.get("procedure")
+        or meta_obj.get("instructions")
         or []
     )
-    steps = []
+
+    steps: list[str] = []
+
+    def _norm_list(lst):
+        return [str(s).strip() for s in lst if isinstance(s, (str, int, float)) and str(s).strip()]
+
     if isinstance(steps_raw, str):
-        steps = [s.strip() for s in steps_raw.split("\n") if s.strip()]
+        # split by newlines first; fallback to ". "
+        parts = [p.strip() for p in steps_raw.replace("\r", "").split("\n") if p.strip()]
+        if not parts:
+            parts = [p.strip() for p in steps_raw.split(". ") if p.strip()]
+        steps = parts
     elif isinstance(steps_raw, list):
-        # analyzedInstructions: [{name, steps:[{number, step, ...}, ...}, ...]
+        # analyzedInstructions: [{name, steps:[{number, step, ...}, ...]}, ...]
         if steps_raw and isinstance(steps_raw[0], dict) and "steps" in steps_raw[0]:
             for block in steps_raw:
                 for st in (block.get("steps") or []):
@@ -1810,11 +1847,61 @@ def save_favorite(request, source, recipe_id):
                     if txt:
                         steps.append(txt)
         else:
-            steps = [str(s).strip() for s in steps_raw if str(s).strip()]
+            steps = _norm_list(steps_raw)
+
+    # If still empty and this is an AI recipe, use the same heuristic as recipe_detail
+    if not steps and source == "ai":
+        title_l = title.lower()
+
+        def _make(seq):
+            return [s for s in seq if s and s.strip()]
+
+        if "smoothie" in title_l or "shake" in title_l:
+            steps = _make([
+                "Add all ingredients to a blender.",
+                "Blend until completely smooth.",
+                "Taste and adjust sweetness or thickness as desired.",
+                "Pour into a glass and serve immediately.",
+            ])
+        elif "oatmeal" in title_l or "overnight oats" in title_l:
+            steps = _make([
+                "Cook oats according to package directions (water or milk).",
+                "Stir in the remaining ingredients.",
+                "Simmer 1–2 minutes to warm through (optional).",
+                "Serve warm and top as desired.",
+            ])
+        elif "toast" in title_l or "sandwich" in title_l:
+            steps = _make([
+                "Toast the bread to your liking.",
+                "Spread almond butter evenly on the toast.",
+                "Top with sliced banana; drizzle honey if using.",
+                "Serve immediately.",
+            ])
+        elif "salad" in title_l or "bowl" in title_l:
+            steps = _make([
+                "Chop or prep all ingredients as needed.",
+                "Combine in a bowl.",
+                "Dress, season with salt and pepper, and toss to coat.",
+                "Serve.",
+            ])
+        elif "energy ball" in title_l or "balls" in title_l or "bites" in title_l:
+            steps = _make([
+                "In a bowl, stir all ingredients until evenly combined.",
+                "Chill the mixture for 15–20 minutes to firm up.",
+                "Roll into bite-size balls.",
+                "Refrigerate in an airtight container.",
+            ])
+        else:
+            steps = _make([
+                "Prep ingredients (wash, peel, chop as needed).",
+                "Combine and season to taste.",
+                "Cook or chill if appropriate.",
+                "Serve.",
+            ])
 
     # Persist (idempotent on (user, source, external_id))
     try:
-        _, created = SavedRecipe.objects.get_or_create(
+        obj, created = SavedRecipe.objects.get_or_create(
             user=request.user,
             source=source,
             external_id=external_id,
@@ -1825,7 +1912,30 @@ def save_favorite(request, source, recipe_id):
                 "steps_json": steps,
             },
         )
-        messages.success(request, "Saved to Favorites." if created else "Already in your Favorites.")
+
+        # If it already exists but we now have better data (e.g., steps were empty before),
+        # do a light update without changing ownership/identity.
+        updated = False
+        if not created:
+            if image_url and not obj.image_url:
+                obj.image_url = image_url
+                updated = True
+            if ingredients and not obj.ingredients_json:
+                obj.ingredients_json = ingredients
+                updated = True
+            if steps and not obj.steps_json:
+                obj.steps_json = steps
+                updated = True
+            if title and obj.title != title[:200]:
+                obj.title = title[:200]
+                updated = True
+            if updated:
+                obj.save(update_fields=["title", "image_url", "ingredients_json", "steps_json"])
+
+        messages.success(
+            request,
+            "Saved to Favorites." if created else ("Updated your Favorite." if updated else "Already in your Favorites.")
+        )
     except Exception as e:
         logger.exception("Failed to save favorite: %s", e)
         messages.error(request, "Could not save to favorites right now.")

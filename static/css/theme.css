@@ -206,7 +206,7 @@ tr:hover td { background: rgba(37,99,235,.03); }
    ========================= */
 .site-footer{
   background: var(--bs-body-bg);
-  border-top: 1px solid var(--bs-border-color); 
+  border-top: 1px solid var(--bs-border-color);
 }
 
 /* Let .link-secondary use Bootstrap’s own color in each theme */

@@ -277,3 +277,28 @@ class LoggedMeal(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.date}: {self.title or 'Meal'} ({self.calories} kcal)"
+    
+    class Favorite(models.Model):
+        user = models.ForeignKey(
+            settings.AUTH_USER_MODEL,
+            on_delete=models.CASCADE,
+            related_name="favorites",
+        )
+        # Store a stable ID for the recipe. Use CharField to support both numeric/string IDs.
+        recipe_uid = models.CharField(max_length=128)
+
+        # Optional “snapshot” fields to render favorites list quickly
+        title = models.CharField(max_length=255, blank=True)
+        image_url = models.URLField(blank=True)
+        source_url = models.URLField(blank=True)
+
+        added_at = models.DateTimeField(auto_now_add=True)
+
+        class Meta:
+            unique_together = ("user", "recipe_uid")
+            indexes = [
+                models.Index(fields=["user", "recipe_uid"]),
+            ]
+
+        def __str__(self):
+            return f"{self.user} → {self.recipe_uid}"
