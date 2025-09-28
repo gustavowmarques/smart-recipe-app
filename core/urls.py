@@ -50,7 +50,7 @@ urlpatterns = [
 
     # Meal logging
     path("log-meal/custom/", views.log_custom_meal, name="log_custom_meal"),
-    path("log-meal/<slug:recipe_id>/", views.log_recipe_meal, name="log_recipe_meal"),
+    path("log-meal/<slug:rid>/", views.log_recipe_meal, name="log_recipe_meal"),
     path("log-meal/delete/<int:meal_id>/", views.delete_meal, name="delete_meal"),
 
     # Meal plan

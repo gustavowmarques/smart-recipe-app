@@ -11,9 +11,9 @@
     <h2 class="text-body-emphasis mb-0">Meal Plan</h2>
     <div class="d-flex align-items-center gap-2" data-tour="meal.nav">
       {# Previous / Current / Next week controls (your existing links/buttons) #}
-      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week_start|date:'Y-m-d'|add:'-7 days' }}">← Prev</a>
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ prev_week|date:'Y-m-d' }}">← Prev</a>
       <a class="btn btn-outline-secondary btn-sm" href="?">This week</a>
-      <a class="btn btn-outline-secondary btn-sm" href="?week={{ week_start|date:'Y-m-d'|add:'+7 days' }}">Next →</a>
+      <a class="btn btn-outline-secondary btn-sm" href="?week={{ next_week|date:'Y-m-d' }}">Next →</a>
     </div>
   </div>
 
@@ -34,17 +34,21 @@
             <td class="fw-medium">{{ row.date|date:"D, M j" }}</td>
 
             {# one cell per slot #}
-            {% for meal in row.cells %}
+            {% for cell in row.cells %}
               <td>
-                {% if meal %}
+                {% if cell.meal %}
                   <div class="d-flex justify-content-between align-items-center">
                     <div class="me-2">
-                      <div class="small fw-medium">{{ meal.recipe.title }}</div>
+                      <div class="small fw-medium">
+                        {{ cell.meal.recipe.title }}
+                      </div>
                       <div class="small text-body-secondary">
-                        {% if meal.recipe and meal.recipe.calories %}~{{ meal.recipe.calories }} kcal{% endif %}
+                        {% if cell.meal.recipe and cell.meal.recipe.calories %}
+                          ~{{ cell.meal.recipe.calories }} kcal
+                        {% endif %}
                       </div>
                     </div>
-                    <form method="post" action="{% url 'core:meal_delete' meal.id %}" class="ms-2">
+                    <form method="post" action="{% url 'core:meal_delete' cell.meal.id %}" class="ms-2">
                       {% csrf_token %}
                       <button class="btn btn-sm btn-outline-danger" title="Remove">
                         <i class="bi bi-trash"></i>
@@ -52,24 +56,26 @@
                     </form>
                   </div>
                 {% else %}
-                  {# Empty slot: inline 'add' form — tour anchor for adding meals #}
                   <div class="text-end" data-tour="meal.addform">
                     <form method="post" action="{% url 'core:meal_add' %}" class="d-flex gap-2 align-items-center justify-content-end">
                       {% csrf_token %}
-                      <input type="hidden" name="date" value="{{ now.date|date:'Y-m-d' }}">
-                      <input type="hidden" name="slot" value="{{ forloop.counter0 }}">
-                      <select name="recipe_id" class="form-select form-select-sm" style="max-width: 260px;">
+                      <input type="hidden" name="date" value="{{ row.date|date:'Y-m-d' }}">
+                      <input type="hidden" name="meal_type" value="{{ cell.slot }}">
+
+                      <select name="recipe_id" class="form-select form-select-sm" style="max-width: 260px;" required>
                         <option value="" selected disabled>Choose from favorites…</option>
                         {% for fav in favorites %}
                           <option value="{{ fav.id }}">{{ fav.title }}</option>
                         {% endfor %}
                       </select>
+
                       <button class="btn btn-sm btn-primary">Add</button>
                     </form>
                   </div>
                 {% endif %}
               </td>
             {% endfor %}
+
           </tr>
         {% endfor %}
       </tbody>

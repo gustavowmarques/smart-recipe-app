@@ -186,8 +186,6 @@ class Meal(models.Model):
 
 
 # --- Nutrition Targets ---
-from django.conf import settings
-from django.db import models
 
 class NutritionTarget(models.Model):
     DIET_CHOICES = [
@@ -277,7 +275,7 @@ class LoggedMeal(models.Model):
 
     def __str__(self):
         return f"{self.user} {self.date}: {self.title or 'Meal'} ({self.calories} kcal)"
-    
+
     class Favorite(models.Model):
         user = models.ForeignKey(
             settings.AUTH_USER_MODEL,

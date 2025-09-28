@@ -1729,25 +1729,30 @@ def favorite_detail(request, pk: int):
     """
     fav = get_object_or_404(SavedRecipe, pk=pk, user=request.user)
 
-    # Minimal recipe dict for title + alt text
-    recipe = {
-        "title": fav.title or "",
-        "name": fav.title or "",
-        "image": fav.image_url or "",
-        "image_url": fav.image_url or "",
-        "url": getattr(fav, "source_url", None),
-    }
+    # --- Normalize ingredients/steps from JSON ---
+    ingredients = []
+    if isinstance(fav.ingredients_json, list):
+        ingredients = [s.strip() for s in fav.ingredients_json if isinstance(s, str) and s.strip()]
+    elif fav.ingredients_json:
+        ingredients = [str(fav.ingredients_json).strip()]
 
-    # Normalized fields (match recipe_detail view)
-    image_url_final = fav.image_url or ""
-    ingredients_list = []
     steps_list = []
-
-    if isinstance(getattr(fav, "ingredients_json", None), list):
-        ingredients_list = [s.strip() for s in fav.ingredients_json if isinstance(s, str) and s.strip()]
-
-    if isinstance(getattr(fav, "steps_json", None), list):
+    if isinstance(fav.steps_json, list):
         steps_list = [s.strip() for s in fav.steps_json if isinstance(s, str) and s.strip()]
+    elif isinstance(fav.steps_json, str):
+        steps_list = [s.strip() for s in fav.steps_json.split("\n") if s.strip()]
+
+    # --- Minimal recipe dict (template uses several keys on `recipe`) ---
+    recipe = {
+        "id": fav.external_id or str(fav.pk),
+        "title": fav.title or "Recipe",
+        "image_url": fav.image_url or "",
+        "ingredients": ingredients,
+        "extendedIngredients": ingredients,
+        "steps": steps_list,
+        "instructions": "\n".join(steps_list),
+        "nutrition": {},  # fill later if you add stored nutrition
+    }
 
     return render(
         request,
@@ -1756,13 +1761,13 @@ def favorite_detail(request, pk: int):
             "recipe": recipe,
             "recipe_id": None,
             "rid": None,
-            "source": fav.source,           # "web" or "ai"
+            "source": fav.source,                  # "ai" or "web"
             "steps_list": steps_list,
-            "ingredients_list": ingredients_list,
-            "image_url_final": image_url_final,
-            "already_saved": True,          # it's a favorite
+            "ingredients_list": ingredients,
+            "image_url_final": fav.image_url or "",
+            "already_saved": True,                 # it's a favorite
             "favorite_pk": fav.pk,
-            "current_id_str": fav.external_id,  # identifier for future actions
+            "current_id_str": str(fav.external_id or fav.pk),  # used by Log Meal form
         },
     )
 
@@ -2144,6 +2149,11 @@ def meal_plan_view(request):
 
     week_start = _monday_for(anchor)
     week_days = [week_start + dt.timedelta(days=i) for i in range(7)]
+
+    # Provide previous/next week anchors for the template nav
+    prev_week = week_start - dt.timedelta(days=7)
+    next_week = week_start + dt.timedelta(days=7)
+
     plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week_start)
 
     meals = (Meal.objects
@@ -2165,7 +2175,10 @@ def meal_plan_view(request):
 
     rows = []
     for day in week_days:
-        cells = [by_key.get((day, sv)) for sv in slot_values]
+        cells = [
+            {"meal": by_key.get((day, sv)), "slot": sv}
+            for sv in slot_values
+        ]
         rows.append({"date": day, "cells": cells})
 
     sel = request.GET.get("recipe")
@@ -2186,47 +2199,56 @@ def meal_plan_view(request):
             "favorites": favorites,
             "selected_recipe_id": selected_recipe_id,
             "week_start": week_start,
+            "prev_week": prev_week,
+            "next_week": next_week,
+            "today": today,
         },
     )
 
 @login_required
+@require_POST
 def meal_add(request):
-    if request.method != "POST":
-        return redirect("core:meal_plan")
-
-    form = MealAddForm(request.POST)
     recipe_id = request.POST.get("recipe_id")
-    if not recipe_id:
-        messages.error(request, "Please choose a recipe to add.")
-        return redirect("core:meal_plan")
-    if not form.is_valid():
-        messages.error(request, "Invalid form data.")
+    date_str = request.POST.get("date")
+    meal_type = request.POST.get("meal_type")
+
+    if not recipe_id or not date_str or not meal_type:
+        messages.error(request, "Missing fields.")
         return redirect("core:meal_plan")
 
-    date = form.cleaned_data["date"]
-    slot = form.cleaned_data["slot"]
-    week_start = _monday_for(date)
+    # Parse date
+    try:
+        meal_date = dt.date.fromisoformat(date_str)
+    except Exception:
+        messages.error(request, "Invalid date.")
+        return redirect("core:meal_plan")
+
+    # Resolve weekly plan
+    week_start = _monday_for(meal_date)
     plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week_start)
+
+    # Ensure valid meal_type
+    if meal_type not in [choice[0] for choice in Meal.Slot.choices]:
+        meal_type = Meal.Slot.LUNCH  # fallback
+
+    # Saved recipe
     recipe = get_object_or_404(SavedRecipe, pk=recipe_id, user=request.user)
 
-    fields = {"plan": plan, "date": date, "recipe": recipe}
-    if hasattr(Meal, "meal_type"):
-        fields["meal_type"] = slot
-        exists_filter = {"plan": plan, "date": date, "meal_type": slot}
-    else:
-        fields["slot"] = slot
-        exists_filter = {"plan": plan, "date": date, "slot": slot}
+    # Create or update (to respect unique constraint)
+    meal, created = Meal.objects.update_or_create(
+        plan=plan,
+        date=meal_date,
+        meal_type=meal_type,
+        defaults={"recipe": recipe},
+    )
 
-    if Meal.objects.filter(**exists_filter).exists():
-        messages.warning(request, "There is already a meal in that slot.")
+    if created:
+        messages.success(request, f"Added {recipe.title} to {meal_type.title()} on {meal_date}")
     else:
-        try:
-            Meal.objects.create(**fields)
-            messages.success(request, f'Added “{(recipe.title or "Untitled")}” to {date} ({slot}).')
-        except IntegrityError:
-            messages.warning(request, "There is already a meal in that slot.")
+        messages.success(request, f"Updated {meal_type.title()} on {meal_date} with {recipe.title}")
 
     return redirect(f"{reverse('core:meal_plan')}?week={week_start.isoformat()}")
+
 
 @login_required
 def meal_delete(request, meal_id: int):
@@ -2416,56 +2438,58 @@ def log_custom_meal(request):
 
 @login_required
 @require_POST
-def log_recipe_meal(request, recipe_id):
+def log_recipe_meal(request, rid=None, recipe_id=None):
     """
-    Log a meal from a recipe detail.
-    Works for:
-      - web: numeric Spoonacular IDs
-      - ai:  slug IDs
-    Expects recipe payload to be in session via the search/results/detail caching.
+    Create a LoggedMeal entry for *today* from the details page form.
+    Accepts either URL kwarg name: `rid` or `recipe_id`.
+    Stores per-serving nutrition + a separate quantity multiplier.
     """
-    key = str(recipe_id)
-    # Decide source by shape of id
-    source = "web" if key.isdigit() else "ai"
+    # --- accept either kw name from the url ---
+    url_key = rid or recipe_id
 
-    # Reuse the same session helper you already use in save_favorite/recipe_detail
-    recipe = _get_session_recipe(source, key, request)
-    if not recipe:
+    # 1) Read form values
+    meal_type = (request.POST.get("meal_type") or "lunch").strip().lower()
+    try:
+        quantity = Decimal(request.POST.get("quantity") or "1")
+    except Exception:
+        quantity = Decimal("1")
+
+    title = (request.POST.get("title") or "Recipe").strip()
+
+    def dec(name):
+        try:
+            return Decimal(str(request.POST.get(name) or "0"))
+        except Exception:
+            return Decimal("0")
+
+    calories  = dec("calories")
+    protein_g = dec("protein_g")
+    carbs_g   = dec("carbs_g")
+    fat_g     = dec("fat_g")
+
+    # 2) Choose a stable id to remember where this came from
+    #    Prefer the hidden "key" we post from the template; fall back to url key.
+    source_recipe_id = (request.POST.get("key") or (rid or recipe_id) or "").strip()
+    if not source_recipe_id:
         messages.error(request, "Recipe not available to log.")
         return redirect("core:dashboard")
 
-    # Normalize nutrition
-    calories = int(round(float(recipe.get("calories") or recipe.get("cal") or 0)))
-    protein_g = int(round(float(recipe.get("protein_g") or 0)))
-    carbs_g   = int(round(float(recipe.get("carbs_g") or 0)))
-    fat_g     = int(round(float(recipe.get("fat_g") or 0)))
-
-    # Fallbacks if recipe has meta/nutrition arrays (web)
-    meta = recipe.get("meta") or {}
-    if not any([calories, protein_g, carbs_g, fat_g]):
-        for n in (meta.get("nutrition") or {}).get("nutrients", []):
-            nm = (n.get("name") or "").lower()
-            val = n.get("amount") or 0
-            if nm == "calories": calories = int(round(float(val)))
-            elif nm == "protein": protein_g = int(round(float(val)))
-            elif nm in ("carbohydrates", "carbs"): carbs_g = int(round(float(val)))
-            elif nm == "fat": fat_g = int(round(float(val)))
-
+    # 3) Create the LoggedMeal (match your model fields exactly)
     LoggedMeal.objects.create(
         user=request.user,
-        date=date.today(),
-        title=recipe.get("title") or "Logged recipe",
-        calories=calories or 0,
-        protein_g=protein_g or 0,
-        carbs_g=carbs_g or 0,
-        fat_g=fat_g or 0,
-        meal_type=request.POST.get("meal_type") or "lunch",
-        quantity=float(request.POST.get("quantity") or 1),
-        source=source,
-        external_id=str(recipe.get("id") or key),
+        date=timezone.localdate(),
+        meal_type=meal_type,
+        title=title[:200],
+        source_recipe_id=str(source_recipe_id)[:64],
+        calories=calories,
+        protein_g=protein_g,
+        carbs_g=carbs_g,
+        fat_g=fat_g,
+        quantity=quantity,
     )
-    messages.success(request, "Meal logged.")
-    return redirect("core:nutrition_target")
+
+    messages.success(request, "Meal logged for today.")
+    return redirect("core:meal_plan")
 
 
 @require_POST

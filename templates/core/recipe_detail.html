@@ -21,8 +21,8 @@
     {% else %}
       {# Works for both AI and Web recipes #}
       {% if current_id_str %}
-        <form method="post" 
-              action="{% url 'core:save_favorite' source current_id_str %}" 
+        <form method="post"
+              action="{% url 'core:save_favorite' source current_id_str %}"
               class="d-inline">
           {% csrf_token %}
           <button class="btn btn-primary btn-sm">
@@ -130,6 +130,8 @@
                 <input type="hidden" name="protein_g" value="{{ recipe.nutrition.protein_g|default:0 }}">
                 <input type="hidden" name="carbs_g"   value="{{ recipe.nutrition.carbs_g|default:0 }}">
                 <input type="hidden" name="fat_g"     value="{{ recipe.nutrition.fat_g|default:0 }}">
+                <input type="hidden" name="source" value="{{ source }}">
+                <input type="hidden" name="key"    value="{{ current_id_str }}">
 
                 <!-- Meal type -->
                 <div class="col-6">
