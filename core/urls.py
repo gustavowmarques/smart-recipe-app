@@ -47,6 +47,9 @@ urlpatterns = [
     # Nutrition targets
     path("targets/", views.nutrition_target_upsert, name="nutrition_target"),
     path("targets/reset/", views.nutrition_target_reset, name="nutrition_target_reset"),
+    path("targets/meals/<int:pk>/update/", views.update_logged_meal, name="update_logged_meal"),
+
+
 
     # Meal logging
     path("log-meal/custom/", views.log_custom_meal, name="log_custom_meal"),

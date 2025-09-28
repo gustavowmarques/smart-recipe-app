@@ -1776,29 +1776,26 @@ def favorite_detail(request, pk: int):
 def save_favorite(request, source, recipe_id):
     """
     Save the current AI/Web recipe (from session) into SavedRecipe.
-    Works with AI slugs and numeric web IDs. Idempotent via (user, source, external_id).
-    Also mirrors the instruction fallbacks used in the detail view so AI items
-    reliably store steps.
+    Idempotent via (user, source, external_id). Also mirrors the instruction
+    fallbacks used in the detail view so AI items reliably store steps.
     """
-    # Validate source
     if source not in {"ai", "web"}:
         messages.error(request, "Unknown recipe source.")
         return redirect("core:dashboard")
 
-    # Pull the recipe payload we cached in session during results
     recipe = _get_session_recipe(source, recipe_id, request)
     if not recipe:
         messages.error(request, "Recipe no longer available to save.")
         return redirect("core:dashboard")
 
-    # External id must be a string for uniqueness
     external_id = str(recipe.get("id", recipe_id))
-
-    # Basic fields
     title = (recipe.get("title") or recipe.get("name") or "").strip() or "Untitled"
     image_url = recipe.get("image_url") or recipe.get("image") or ""
 
-    # ---- Ingredients (accept both list[str] and Spoonacular dicts) ----
+    # Best-effort macros (ID for web; title for AI)
+    macros = spoonacular_macros_for(external_id if source == "web" else None, title=title)
+
+    # ---- normalize ingredients ----
     ingredients_raw = (
         recipe.get("ingredients")
         or recipe.get("extendedIngredients")
@@ -1808,7 +1805,6 @@ def save_favorite(request, source, recipe_id):
     ingredients: list[str] = []
     if isinstance(ingredients_raw, list):
         if ingredients_raw and isinstance(ingredients_raw[0], dict):
-            # Spoonacular-like dicts
             for i in ingredients_raw:
                 text = i.get("original") or i.get("originalString") or i.get("name")
                 if text:
@@ -1818,9 +1814,8 @@ def save_favorite(request, source, recipe_id):
     elif ingredients_raw:
         ingredients = [str(ingredients_raw).strip()]
 
-    # ---- Steps (mirror detail view fallbacks; handle strings, lists, analyzedInstructions) ----
+    # ---- normalize steps (same fallbacks as detail view) ----
     meta_obj = recipe.get("meta") or {}
-
     steps_raw = (
         recipe.get("steps")
         or recipe.get("instructions")
@@ -1833,18 +1828,15 @@ def save_favorite(request, source, recipe_id):
     )
 
     steps: list[str] = []
-
     def _norm_list(lst):
         return [str(s).strip() for s in lst if isinstance(s, (str, int, float)) and str(s).strip()]
 
     if isinstance(steps_raw, str):
-        # split by newlines first; fallback to ". "
         parts = [p.strip() for p in steps_raw.replace("\r", "").split("\n") if p.strip()]
         if not parts:
             parts = [p.strip() for p in steps_raw.split(". ") if p.strip()]
         steps = parts
     elif isinstance(steps_raw, list):
-        # analyzedInstructions: [{name, steps:[{number, step, ...}, ...]}, ...]
         if steps_raw and isinstance(steps_raw[0], dict) and "steps" in steps_raw[0]:
             for block in steps_raw:
                 for st in (block.get("steps") or []):
@@ -1854,13 +1846,9 @@ def save_favorite(request, source, recipe_id):
         else:
             steps = _norm_list(steps_raw)
 
-    # If still empty and this is an AI recipe, use the same heuristic as recipe_detail
     if not steps and source == "ai":
         title_l = title.lower()
-
-        def _make(seq):
-            return [s for s in seq if s and s.strip()]
-
+        def _make(seq): return [s for s in seq if s and s.strip()]
         if "smoothie" in title_l or "shake" in title_l:
             steps = _make([
                 "Add all ingredients to a blender.",
@@ -1904,7 +1892,7 @@ def save_favorite(request, source, recipe_id):
                 "Serve.",
             ])
 
-    # Persist (idempotent on (user, source, external_id))
+    # Persist (idempotent)
     try:
         obj, created = SavedRecipe.objects.get_or_create(
             user=request.user,
@@ -1915,31 +1903,37 @@ def save_favorite(request, source, recipe_id):
                 "image_url": image_url,
                 "ingredients_json": ingredients,
                 "steps_json": steps,
+                "calories":  macros.get("calories"),
+                "protein_g": macros.get("protein_g"),
+                "carbs_g":   macros.get("carbs_g"),
+                "fat_g":     macros.get("fat_g"),
             },
         )
 
-        # If it already exists but we now have better data (e.g., steps were empty before),
-        # do a light update without changing ownership/identity.
-        updated = False
+        # Light, safe updates for existing rows
+        updated_fields = []
         if not created:
             if image_url and not obj.image_url:
-                obj.image_url = image_url
-                updated = True
+                obj.image_url = image_url; updated_fields.append("image_url")
             if ingredients and not obj.ingredients_json:
-                obj.ingredients_json = ingredients
-                updated = True
+                obj.ingredients_json = ingredients; updated_fields.append("ingredients_json")
             if steps and not obj.steps_json:
-                obj.steps_json = steps
-                updated = True
+                obj.steps_json = steps; updated_fields.append("steps_json")
             if title and obj.title != title[:200]:
-                obj.title = title[:200]
-                updated = True
-            if updated:
-                obj.save(update_fields=["title", "image_url", "ingredients_json", "steps_json"])
+                obj.title = title[:200]; updated_fields.append("title")
+
+            # Also backfill macros if missing and we fetched some
+            for fld in ("calories", "protein_g", "carbs_g", "fat_g"):
+                if getattr(obj, fld) in (None, Decimal("0")) and macros.get(fld) not in (None, ""):
+                    setattr(obj, fld, macros.get(fld))
+                    updated_fields.append(fld)
+
+            if updated_fields:
+                obj.save(update_fields=list(set(updated_fields)))
 
         messages.success(
             request,
-            "Saved to Favorites." if created else ("Updated your Favorite." if updated else "Already in your Favorites.")
+            "Saved to Favorites." if created else ("Updated your Favorite." if updated_fields else "Already in your Favorites.")
         )
     except Exception as e:
         logger.exception("Failed to save favorite: %s", e)
@@ -2498,4 +2492,17 @@ def delete_meal(request, meal_id: int):
     meal = get_object_or_404(LoggedMeal, id=meal_id, user=request.user)
     meal.delete()
     messages.success(request, "Meal removed.")
+    return redirect("core:nutrition_target")
+
+@login_required
+@require_POST
+def update_logged_meal(request, pk: int):
+    meal = get_object_or_404(LoggedMeal, pk=pk, user=request.user)
+    meal.title     = (request.POST.get("title") or meal.title or "Meal").strip()[:200]
+    meal.calories  = Decimal(request.POST.get("calories")  or meal.calories or 0)
+    meal.protein_g = Decimal(request.POST.get("protein_g") or meal.protein_g or 0)
+    meal.carbs_g   = Decimal(request.POST.get("carbs_g")   or meal.carbs_g or 0)
+    meal.fat_g     = Decimal(request.POST.get("fat_g")     or meal.fat_g or 0)
+    meal.save(update_fields=["title","calories","protein_g","carbs_g","fat_g"])
+    messages.success(request, "Meal updated.")
     return redirect("core:nutrition_target")

@@ -209,19 +209,85 @@
             <h6 class="card-title mb-2">Today’s meals</h6>
             <ul class="list-group list-group-flush">
               {% for m in todays_meals %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                  <div>
-                    <strong class="me-2">{{ m.title }}</strong>
-                    <span class="text-body-secondary small">{{ m.meal_type|capfirst }}</span>
-                    <div class="small text-body-secondary">
-                      {{ m.calories }} kcal · P {{ m.protein_g }}g · C {{ m.carbs_g }}g · F {{ m.fat_g }}g
+                <!-- ------------------------------
+                   Show the recipe title if we have it (planned meal),
+                   otherwise fall back to whatever was logged.
+                   ------------------------------ -->
+                {% with meal_title=m.recipe.title|default:m.title %}
+                <li class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-start gap-3">
+                    <div>
+                      <strong class="me-2">{{ meal_title }}</strong>
+                      <span class="text-body-secondary small">{{ m.meal_type|capfirst }}</span>
+
+                      <div class="small text-body-secondary">
+                        {{ m.calories }} kcal · P {{ m.protein_g }}g · C {{ m.carbs_g }}g · F {{ m.fat_g }}g
+                        {% if m.recipe %}<span class="ms-2 badge text-bg-light">Planned</span>{% endif %}
+                      </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                      {# Toggle the inline editor (Bootstrap collapse) #}
+                      <a class="btn btn-sm btn-outline-secondary"
+                         data-bs-toggle="collapse" href="#edit-{{ m.id }}" role="button"
+                         aria-expanded="false" aria-controls="edit-{{ m.id }}">Edit</a>
+
+                      <form method="post" action="{% url 'core:delete_meal' m.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-outline-danger">Remove</button>
+                      </form>
                     </div>
                   </div>
-                  <form method="post" action="{% url 'core:delete_meal' m.id %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-danger">Remove</button>
-                  </form>
+
+                   <!-- -------------------------------------------
+                     Inline EDIT form (prefilled). We prefill from
+                     the SavedRecipe (m.recipe) when present; if not,
+                     we fall back to the LoggedMeal values.
+                     -------------------------------------------  -->
+                  <div class="collapse mt-3" id="edit-{{ m.id }}">
+                    <form method="post" action="{% url 'core:update_logged_meal' m.id %}">
+                      {% csrf_token %}
+                      <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-4">
+                          <label class="form-label small">Title</label>
+                          <input name="title" class="form-control form-control-sm"
+                                 value="{{ meal_title }}">
+                        </div>
+
+                        <div class="col-6 col-md-2">
+                          <label class="form-label small">Calories</label>
+                          <input type="number" min="0" step="1" name="calories"
+                                 class="form-control form-control-sm"
+                                 value="{{ m.recipe.calories|default:m.calories|default:0 }}">
+                        </div>
+                        <div class="col-6 col-md-2">
+                          <label class="form-label small">Protein (g)</label>
+                          <input type="number" min="0" step="0.1" name="protein_g"
+                                 class="form-control form-control-sm"
+                                 value="{{ m.recipe.protein_g|default:m.protein_g|default:0 }}">
+                        </div>
+                        <div class="col-6 col-md-2">
+                          <label class="form-label small">Carbs (g)</label>
+                          <input type="number" min="0" step="0.1" name="carbs_g"
+                                 class="form-control form-control-sm"
+                                 value="{{ m.recipe.carbs_g|default:m.carbs_g|default:0 }}">
+                        </div>
+                        <div class="col-6 col-md-2">
+                          <label class="form-label small">Fat (g)</label>
+                          <input type="number" min="0" step="0.1" name="fat_g"
+                                 class="form-control form-control-sm"
+                                 value="{{ m.recipe.fat_g|default:m.fat_g|default:0 }}">
+                        </div>
+
+                        <div class="col-12 d-flex gap-2">
+                          <button class="btn btn-sm btn-primary">Save</button>
+                          <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" href="#edit-{{ m.id }}">Cancel</a>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
                 </li>
+                {% endwith %}
               {% endfor %}
             </ul>
           </div>

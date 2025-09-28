@@ -98,6 +98,11 @@ class SavedRecipe(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    calories = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    protein_g = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    carbs_g   = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    fat_g     = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         constraints = [
