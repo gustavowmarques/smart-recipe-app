@@ -313,8 +313,6 @@
                         </div>
                         {# Link to recipe detail (expects session to contain the same 'web' item) #}
                         <a href="{% url 'core:recipe_detail' 'web' r.id %}" class="btn btn-sm btn-outline-primary mt-2">View</a>
-                        {# Shortcut back to recipe area (your existing behavior) #}
-                        <a href="{% url 'core:dashboard' %}#recipes" class="btn btn-sm btn-primary mt-2">Log meal</a>
                       </div>
                     </div>
                   </div>

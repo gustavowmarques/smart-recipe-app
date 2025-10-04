@@ -99,10 +99,12 @@
         <div class="d-flex align-items-center gap-2">
           {% if user.is_authenticated %}
             <span class="navbar-text d-none d-lg-inline text-body-secondary me-1">Hi, {{ user.username }}</span>
-            <form class="navbar-text d-none d-lg-inline text-body-secondary me-1 method="post" action="{% url 'logout' %}">
+            {# GOOD: real POST with CSRF #}
+            <form method="post" action="{% url 'accounts:logout' %}" class="d-inline m-0 p-0">
               {% csrf_token %}
-              <button class="btn btn-outline-danger btn-sm">Logout</button>
+              <button type="submit" class="btn btn-sm btn-outline-danger">Logout</button>
             </form>
+
           {% endif %}
         </div>
       </div>

@@ -8,6 +8,10 @@ import os
 import warnings
 import dj_database_url
 from dotenv import load_dotenv
+from django.conf import settings
+from django.conf.urls.static import static
+
+
 
 # ---------------------------------------------------------------------
 # BASE & ENV
@@ -193,7 +197,7 @@ if USE_S3:
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")     # e.g. "eu-north-1"
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "eu-north-1") 
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
@@ -202,10 +206,15 @@ if USE_S3:
     AWS_DEFAULT_ACL = None
     # Optional helpers:
     # AWS_S3_ADDRESSING_STYLE = "virtual"
-    # AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
 
     # Public S3 base URL for media
     MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+
+AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
+if AWS_S3_CUSTOM_DOMAIN:
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+
 
 # ---------------------------------------------------------------------
 # LOGGING (show errors in Render logs)
@@ -234,3 +243,4 @@ LOGOUT_REDIRECT_URL = "core:home"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 ENABLE_AI_IMAGES = os.getenv("ENABLE_AI_IMAGES", "false").lower() in ("1", "true", "yes")
+

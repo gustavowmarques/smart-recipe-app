@@ -1,61 +1,101 @@
-import os
 import logging
+import os
+import re
+import uuid
+import mimetypes
+from typing import Optional
 import requests
-from urllib.parse import urlparse
-from uuid import uuid4
-
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.utils.text import slugify
+from uuid import uuid4
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
-SPOON_URL = "https://api.spoonacular.com/recipes/complexSearch"
+# -------- Spoonacular: title -> representative image URL --------
+SPOON_KEY = os.getenv("SPOONACULAR_API_KEY")
 
-
-def spoonacular_image_for(title: str, api_key: str | None = None, timeout: int = 6) -> str | None:
+def spoonacular_image_for(title: str) -> Optional[str]:
     """
-    Return a direct image URL from Spoonacular for a recipe title,
-    or None if nothing found / API fails.
+    Best-effort: look up a representative image URL for a recipe title using Spoonacular.
+    Returns a direct image URL (string) or None on error/limit/no match.
     """
-    api_key = api_key or os.getenv("SPOONACULAR_API_KEY")
-    if not api_key or not title:
+    title = (title or "").strip()
+    if not title or not SPOON_KEY:
         return None
 
     try:
         r = requests.get(
-            SPOON_URL,
-            params={"query": title, "number": 1, "apiKey": api_key},
-            timeout=timeout,
+            "https://api.spoonacular.com/recipes/complexSearch",
+            params={
+                "apiKey": SPOON_KEY,
+                "query": title,
+                "number": 1,
+                "addRecipeInformation": True,  # ensures 'image' is present/reliable
+                "sort": "popularity",
+                "instructionsRequired": False,
+            },
+            timeout=12,
         )
-        r.raise_for_status()
-        data = r.json() or {}
-        results = data.get("results") or []
-        if results:
-            return results[0].get("image")
-    except Exception as e:
-        log.warning("Spoonacular image lookup failed for %r: %s", title, e)
+        if r.status_code in (402, 429) or r.status_code != 200:
+            return None
 
-    return None
+        payload = r.json() or {}
+        results = payload.get("results") or []
+        if not results:
+            return None
+        img = (results[0].get("image") or "").strip()
+        return img or None
+    except Exception:
+        return None
 
 
-def cache_remote_image_to_storage(url: str, prefix: str = "recipe_images/") -> str | None:
-    """
-    OPTIONAL: Download a remote image and store it in Django's default storage (S3/local).
-    Returns a public URL or None on failure.
-    """
+# -------- Cache remote image via Django storage (local in dev, S3 in prod) --------
+SAFE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+CONTENT_TYPE_MAP = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+
+def _safe_slug(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9\-]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s or uuid.uuid4().hex
+
+def _guess_ext(url: str, content_type: str | None) -> str:
+    if content_type:
+        ext = CONTENT_TYPE_MAP.get(content_type.split(";")[0].strip().lower())
+        if ext:
+            return ext
+    url_ext = os.path.splitext(url.split("?")[0])[1].lower()
+    if url_ext in SAFE_EXTS:
+        return url_ext
+    if content_type:
+        ext = mimetypes.guess_extension(content_type.split(";")[0].strip().lower()) or ".jpg"
+        if ext == ".jpe":
+            ext = ".jpg"
+        if ext not in SAFE_EXTS:
+            ext = ".jpg"
+        return ext
+    return ".jpg"
+
+def cache_remote_image_to_storage(url, storage=None, subdir="recipe_images", filename_slug=None):
+    """Download a remote image, save to S3/local storage, and return its URL."""
+    
+    storage = storage or default_storage
+
     if not url:
         return None
     try:
-        resp = requests.get(url, timeout=8)
+        resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-
-        # Try to preserve extension
-        path = urlparse(url).path
-        ext = (path.rsplit(".", 1)[-1].lower() if "." in path else "jpg")
-        key = f"{prefix}{uuid4().hex}.{ext}"
-
-        default_storage.save(key, ContentFile(resp.content))
-        return default_storage.url(key)
-    except Exception as e:
-        log.warning("Cache to storage failed for %s: %s", url, e)
+        ext = ".jpg"
+        name = f"{folder}{uuid4().hex}{ext}"
+        storage.save(name, ContentFile(resp.content))
+        return storage.url(name)
+    except Exception as exc:
+        logger.warning("Image cache failed: %s", exc, exc_info=False)
         return None
