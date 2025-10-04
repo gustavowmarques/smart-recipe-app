@@ -8,31 +8,62 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0009_nutritiontarget_diet_type_nutritiontarget_fiber_g_and_more'),
+        ("core", "0009_nutritiontarget_diet_type_nutritiontarget_fiber_g_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='LoggedMeal',
+            name="LoggedMeal",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('date', models.DateField(auto_now_add=True)),
-                ('meal_type', models.CharField(choices=[('breakfast', 'Breakfast'), ('lunch', 'Lunch'), ('dinner', 'Dinner'), ('snack', 'Snack')], default='lunch', max_length=16)),
-                ('title', models.CharField(blank=True, max_length=200)),
-                ('source_recipe_id', models.CharField(blank=True, max_length=64)),
-                ('calories', models.PositiveIntegerField(default=0)),
-                ('protein_g', models.PositiveIntegerField(default=0)),
-                ('carbs_g', models.PositiveIntegerField(default=0)),
-                ('fat_g', models.PositiveIntegerField(default=0)),
-                ('fiber_g', models.PositiveIntegerField(default=0)),
-                ('sugar_g', models.PositiveIntegerField(default=0)),
-                ('quantity', models.FloatField(default=1.0)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='logged_meals', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("date", models.DateField(auto_now_add=True)),
+                (
+                    "meal_type",
+                    models.CharField(
+                        choices=[
+                            ("breakfast", "Breakfast"),
+                            ("lunch", "Lunch"),
+                            ("dinner", "Dinner"),
+                            ("snack", "Snack"),
+                        ],
+                        default="lunch",
+                        max_length=16,
+                    ),
+                ),
+                ("title", models.CharField(blank=True, max_length=200)),
+                ("source_recipe_id", models.CharField(blank=True, max_length=64)),
+                ("calories", models.PositiveIntegerField(default=0)),
+                ("protein_g", models.PositiveIntegerField(default=0)),
+                ("carbs_g", models.PositiveIntegerField(default=0)),
+                ("fat_g", models.PositiveIntegerField(default=0)),
+                ("fiber_g", models.PositiveIntegerField(default=0)),
+                ("sugar_g", models.PositiveIntegerField(default=0)),
+                ("quantity", models.FloatField(default=1.0)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="logged_meals",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-date', '-id'],
-                'indexes': [models.Index(fields=['user', 'date'], name='core_logged_user_id_785889_idx')],
+                "ordering": ["-date", "-id"],
+                "indexes": [
+                    models.Index(
+                        fields=["user", "date"], name="core_logged_user_id_785889_idx"
+                    )
+                ],
             },
         ),
     ]

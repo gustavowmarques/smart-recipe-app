@@ -23,15 +23,33 @@ SPOON_BASE = "https://api.spoonacular.com/recipes/complexSearch"
 API_KEY = os.getenv("SPOONACULAR_API_KEY")
 
 
-def spoon_search(query, number: int = 10, min_protein: int | None = None, max_calories: int | None = None):
+def spoon_search(
+    query,
+    number: int = 10,
+    min_protein: int | None = None,
+    max_calories: int | None = None,
+):
+    """Search Spoonacular for recipes, returning raw JSON.
+
+    Args:
+        query (str | None): Free-text search query.
+        include_ingredients (str | None): Comma-separated ingredients for matching.
+        number (int): Max number of recipes to return.
+        **kwargs: Optional flags (e.g., 'add_recipe_nutrition') that are ignored
+            at the transport layer but allowed for API-compatibility with callers.
+
+    Returns:
+        dict | list: JSON payload from Spoonacular.
+
+    Raises:
+        requests.HTTPError: If the response is non-2xx (caller typically handles).
+        requests.Timeout / RequestException: Network-level failures.
+
+    Notes:
+        - Timeouts are enforced; callers should handle quota (402) gracefully.
+        - This function should remain side-effect free (no DB writes).
     """
-    Search Spoonacular recipes and return normalized dicts.
-    :param query: search string
-    :param number: how many results to request
-    :param min_protein: optional min protein filter (g)
-    :param max_calories: optional max calories filter (kcal)
-    :return: list of dicts
-    """
+
     if not API_KEY:
         logger.warning("Spoonacular API key not set; returning empty results.")
         return []
@@ -62,7 +80,9 @@ def spoon_search(query, number: int = 10, min_protein: int | None = None, max_ca
             continue
 
         title = r.get("title", "Recipe")
-        image = r.get("image")  # full URL (Spoonacular always provides this if available)
+        image = r.get(
+            "image"
+        )  # full URL (Spoonacular always provides this if available)
 
         # Extract nutrition
         protein_g = 0

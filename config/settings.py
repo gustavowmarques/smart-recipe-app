@@ -8,9 +8,6 @@ import os
 import warnings
 import dj_database_url
 from dotenv import load_dotenv
-from django.conf import settings
-from django.conf.urls.static import static
-
 
 
 # ---------------------------------------------------------------------
@@ -73,7 +70,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
 # to print emails to the console.
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ---------------------------------------------------------------------
 # APPS
@@ -85,15 +82,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     # third-party
     "rest_framework",
-
     # local
     "core",
     "accounts",
-
-    'widget_tweaks',
+    "widget_tweaks",
 ]
 
 # ---------------------------------------------------------------------
@@ -113,7 +107,7 @@ MIDDLEWARE = [
 # ---------------------------------------------------------------------
 # URLS / WSGI
 # ---------------------------------------------------------------------
-ROOT_URLCONF = "config.urls"               # adjust if your project module is different
+ROOT_URLCONF = "config.urls"  # adjust if your project module is different
 WSGI_APPLICATION = "config.wsgi.application"
 
 # ---------------------------------------------------------------------
@@ -158,7 +152,9 @@ else:
 # PASSWORD VALIDATION
 # ---------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -177,7 +173,7 @@ USE_TZ = True
 # ---------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]  # your source static assets (optional)
-STATIC_ROOT = BASE_DIR / "staticfiles"    # collectstatic destination on Render
+STATIC_ROOT = BASE_DIR / "staticfiles"  # collectstatic destination on Render
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 WHITENOISE_AUTOREFRESH = False
 WHITENOISE_USE_FINDERS = False
@@ -197,11 +193,11 @@ if USE_S3:
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "eu-north-1") 
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "eu-north-1")
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
-    AWS_QUERYSTRING_AUTH = False      # public, cacheable URLs
+    AWS_QUERYSTRING_AUTH = False  # public, cacheable URLs
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
     # Optional helpers:
@@ -209,7 +205,9 @@ if USE_S3:
     AWS_S3_SIGNATURE_VERSION = "s3v4"
 
     # Public S3 base URL for media
-    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+    MEDIA_URL = (
+        f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+    )
 
 AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
 if AWS_S3_CUSTOM_DOMAIN:
@@ -226,7 +224,11 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
         "django": {"handlers": ["console"], "level": "INFO"},
-        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
     },
 }
 
@@ -242,5 +244,8 @@ LOGOUT_REDIRECT_URL = "core:home"
 # ---------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-ENABLE_AI_IMAGES = os.getenv("ENABLE_AI_IMAGES", "false").lower() in ("1", "true", "yes")
-
+ENABLE_AI_IMAGES = os.getenv("ENABLE_AI_IMAGES", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)

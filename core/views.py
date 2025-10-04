@@ -1,3 +1,12 @@
+"""Views for Smart Recipe: dashboard, AI recipes, web recipes, favorites, meal planning.
+
+Each view documents:
+- Purpose & auth
+- Request methods and expected data
+- Template and context keys
+- External API interactions and error handling
+"""
+
 # ---- stdlib -----------------------------------------------------------------
 import os
 import re
@@ -7,7 +16,6 @@ import mimetypes
 import logging
 from datetime import date as _date, timedelta
 import datetime as dt
-from datetime import date
 from uuid import uuid4
 from pathlib import Path
 import boto3
@@ -33,12 +41,11 @@ from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction, IntegrityError
-from django.http import JsonResponse, Http404, HttpResponseBadRequest
+from django.http import JsonResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
-from django.views.decorators.csrf import csrf_protect
 from django.core.files.storage import default_storage
 from django.core.mail import send_mail
 from django.utils.text import slugify
@@ -60,11 +67,13 @@ from .forms import (
     SavedRecipeForm,
     NutritionTargetForm,
     PantryImageUploadForm,
-    MealAddForm,
 )
 
-from .services.nutrition import compute_daily_totals, suggest_recipes_for_gaps, sync_logged_meals_from_plan
-
+from .services.nutrition import (
+    compute_daily_totals,
+    suggest_recipes_for_gaps,
+    sync_logged_meals_from_plan,
+)
 
 
 # ---- OpenAI client (new SDK, optional) ---------------------------------------
@@ -77,7 +86,9 @@ except Exception:
 _openai_client = None
 if OpenAI:
     _openai_client = OpenAI(
-        api_key=(getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY"))
+        api_key=(
+            getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
+        )
     )
 
 # ---- Spoonacular helpers (guarded & de-duplicated) ---------------------------
@@ -99,6 +110,8 @@ except Exception:
 
 from .spoonacular import spoonacular_macros_for
 
+from urllib.parse import urlencode
+
 
 def spoon_search(*args, **kwargs):
     """
@@ -110,16 +123,19 @@ def spoon_search(*args, **kwargs):
         return fn(*args, **kwargs)
     return []
 
+
 # Optional detail/enrichment function
 try:
     from .spoonacular import spoonacular_recipe_info  # optional enrichment
 except Exception:
+
     def spoonacular_recipe_info(_sid: str) -> dict:
         """
         Safe no-op fallback. Detail pages will still render thanks to
         view/template fallbacks even if enrichment isn't available.
         """
         return {}
+
 
 # ---- Logging -----------------------------------------------------------------
 logger = logging.getLogger(__name__)
@@ -142,13 +158,18 @@ if pytesseract:
 # Unified recipe search helpers (single button)
 # =============================================================================
 
+
 def _stash_suggestions_in_session(request, suggestions: list[dict]) -> None:
     """
     Merge suggestions (treated as 'web' items) into the session's recipe_results
     so recipe_detail() can retrieve them by id.
     Expected suggestion fields: id, title, (optional) image.
     """
-    bundle = request.session.get("recipe_results") or {"ai": [], "web": [], "combined": []}
+    bundle = request.session.get("recipe_results") or {
+        "ai": [],
+        "web": [],
+        "combined": [],
+    }
 
     def _idx(lst):
         return {str(it.get("id")) for it in lst if isinstance(it, dict)}
@@ -200,12 +221,16 @@ def _gather_ingredient_names(request) -> List[str]:
     return names
 
 
-def _spoonacular_search(names: List[str], recipe_type: str = "food", limit: int = 12) -> List[dict]:
+def _spoonacular_search(
+    names: List[str], recipe_type: str = "food", limit: int = 12
+) -> List[dict]:
     """
     Call Spoonacular Complex Search with includeIngredients.
     Returns normalized dicts: {id, title, image, source, meta}
     """
-    key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv("SPOONACULAR_API_KEY")
+    key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv(
+        "SPOONACULAR_API_KEY"
+    )
     if not key:
         logger.info("Spoonacular key missing; skipping web search.")
         return []
@@ -222,27 +247,35 @@ def _spoonacular_search(names: List[str], recipe_type: str = "food", limit: int 
         "apiKey": key,
     }
     try:
-        r = requests.get("https://api.spoonacular.com/recipes/complexSearch", params=params, timeout=12)
+        r = requests.get(
+            "https://api.spoonacular.com/recipes/complexSearch",
+            params=params,
+            timeout=12,
+        )
         r.raise_for_status()
         data = r.json() or {}
         results = data.get("results", []) or []
         out = []
         for it in results:
-            out.append({
-                "id": int(it.get("id")),
-                "title": it.get("title") or "Untitled",
-                "image": it.get("image"),
-                "source": "web",
-                "meta": it,  # keep the raw payload (detail view can use it)
-            })
+            out.append(
+                {
+                    "id": int(it.get("id")),
+                    "title": it.get("title") or "Untitled",
+                    "image": it.get("image"),
+                    "source": "web",
+                    "meta": it,  # keep the raw payload (detail view can use it)
+                }
+            )
         return out
     except Exception as e:
         logger.warning("Spoonacular search failed: %s", e)
         return []
 
+
 # --------------------------------------------------------------------------------------
 # AI recipe generation (robust JSON-first; markdown-table fallback; normalized keys)
 # --------------------------------------------------------------------------------------
+
 
 def _extract_protein_and_calories(item: dict) -> tuple[int, int]:
     """
@@ -288,8 +321,10 @@ def _slugify_title(title: str, ix: int = 0) -> str:
         base = f"recipe-{ix+1}"
     return (base[:40] or base) if ix == 0 else f"{base[:34]}-{ix+1}"
 
+
 def _normalize_keys(d: dict) -> dict:
-    return { (k or "").strip().lower(): v for k, v in (d or {}).items() }
+    return {(k or "").strip().lower(): v for k, v in (d or {}).items()}
+
 
 def _extract_json_block(text: str) -> Optional[dict]:
     if not text:
@@ -306,6 +341,7 @@ def _extract_json_block(text: str) -> Optional[dict]:
             return None
     return None
 
+
 def _parse_markdown_table(md: str) -> list[dict]:
     rows: list[dict] = []
     if not md:
@@ -316,9 +352,12 @@ def _parse_markdown_table(md: str) -> list[dict]:
     headers = [h.strip().lower() for h in lines[0].strip("|").split("|")]
     for ln in lines[2:]:
         cells = [c.strip() for c in ln.strip("|").split("|")]
-        item = {headers[i]: cells[i] if i < len(cells) else "" for i in range(len(headers))}
+        item = {
+            headers[i]: cells[i] if i < len(cells) else "" for i in range(len(headers))
+        }
         rows.append(_normalize_keys(item))
     return rows
+
 
 def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
     """
@@ -344,13 +383,13 @@ def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
         f"Create 3 {kind} recipes using primarily: {ing_text}.\n"
         "Return STRICT JSON with this shape:\n"
         "{\n"
-        '  \"recipes\": [\n'
+        '  "recipes": [\n'
         "    {\n"
-        '      \"id\": \"short-slug\",\n'
-        '      \"title\": \"string\",\n'
-        '      \"summary\": \"1-2 sentence summary\",\n'
-        '      \"ingredients\": [\"string\", \"...\"],\n'
-        '      \"url\": null\n'
+        '      "id": "short-slug",\n'
+        '      "title": "string",\n'
+        '      "summary": "1-2 sentence summary",\n'
+        '      "ingredients": ["string", "..."],\n'
+        '      "url": null\n'
         "    }\n"
         "  ]\n"
         "}\n"
@@ -361,7 +400,9 @@ def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
 
     # --- Attempt 1: Responses API (do NOT pass response_format here) ---
     try:
-        if hasattr(_openai_client, "responses") and hasattr(_openai_client.responses, "create"):
+        if hasattr(_openai_client, "responses") and hasattr(
+            _openai_client.responses, "create"
+        ):
             resp = _openai_client.responses.create(
                 model=model,
                 input=[
@@ -371,12 +412,16 @@ def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
             )
             text = getattr(resp, "output_text", None) or str(resp)
     except Exception as e:
-        logger.info("Responses API unavailable/failed; will try Chat Completions. (%s)", e)
+        logger.info(
+            "Responses API unavailable/failed; will try Chat Completions. (%s)", e
+        )
 
     # --- Attempt 2: Chat Completions (JSON mode allowed here) ---
     if not text:
         try:
-            if hasattr(_openai_client, "chat") and hasattr(_openai_client.chat, "completions"):
+            if hasattr(_openai_client, "chat") and hasattr(
+                _openai_client.chat, "completions"
+            ):
                 kwargs = {
                     "model": model,
                     "messages": [
@@ -405,14 +450,16 @@ def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
             r = _normalize_keys(r if isinstance(r, dict) else {})
             title = (r.get("title") or "").strip() or f"AI recipe {ix+1}"
             rid = (r.get("id") or "").strip() or _slugify_title(title, ix)
-            recipes.append({
-                "id": rid,
-                "title": title,
-                "summary": (r.get("summary") or "").strip(),
-                "ingredients": r.get("ingredients") or [],
-                "url": r.get("url") or None,
-                "source": "ai",
-            })
+            recipes.append(
+                {
+                    "id": rid,
+                    "title": title,
+                    "summary": (r.get("summary") or "").strip(),
+                    "ingredients": r.get("ingredients") or [],
+                    "url": r.get("url") or None,
+                    "source": "ai",
+                }
+            )
 
     # If JSON empty, try markdown-table salvage
     if not recipes and text:
@@ -420,19 +467,23 @@ def _openai_generate(ingredients: list[str], kind: str = "food") -> list[dict]:
         for ix, row in enumerate(rows):
             title = (row.get("title") or "").strip() or f"AI recipe {ix+1}"
             rid = (row.get("id") or "").strip() or _slugify_title(title, ix)
-            recipes.append({
-                "id": rid,
-                "title": title,
-                "summary": (row.get("summary") or "").strip(),
-                "ingredients": [],
-                "url": None,
-                "source": "ai",
-            })
+            recipes.append(
+                {
+                    "id": rid,
+                    "title": title,
+                    "summary": (row.get("summary") or "").strip(),
+                    "ingredients": [],
+                    "url": None,
+                    "source": "ai",
+                }
+            )
 
     return recipes
 
 
-def _combine_and_store_results(request, ai_items: List[dict], web_items: List[dict]) -> None:
+def _combine_and_store_results(
+    request, ai_items: List[dict], web_items: List[dict]
+) -> None:
     """Store both lists and an ordered combined view in session."""
     combined = ai_items + web_items
     combined.sort(key=lambda x: (0 if x["source"] == "ai" else 1, x["title"].lower()))
@@ -447,6 +498,7 @@ def _combine_and_store_results(request, ai_items: List[dict], web_items: List[di
 # =============================================================================
 # Pantry photo extraction helpers
 # =============================================================================
+
 
 def _ocr_extract_text(image_path: str) -> str:
     """
@@ -475,9 +527,11 @@ def _ocr_extract_text(image_path: str) -> str:
         logger.exception("OCR failed.")
         return ""
 
+
 # Patterns used by _parse_ingredients_from_text
 _NUM_RE = r"(\d+(?:\.\d+)?)"
 _UNIT_RE = r"(g|kg|mg|ml|l|tbsp|tsp|teaspoons?|tablespoons?|cup|cups|oz|ounce|ounces|lb|lbs|pound|pounds|pc|pcs|piece|pieces|can|cans|pack|packs)"
+
 
 def _parse_ingredients_from_text(text: str) -> List[dict]:
     """
@@ -558,8 +612,12 @@ def _extract_with_openai_vision(image_url: str) -> List[dict]:
         }
         r = requests.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload, timeout=45,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=45,
         )
         if r.status_code != 200:
             logger.warning("OpenAI Vision non-200: %s %s", r.status_code, r.text[:200])
@@ -573,11 +631,13 @@ def _extract_with_openai_vision(image_url: str) -> List[dict]:
             name = (it.get("name") or "").strip()
             if not name:
                 continue
-            out.append({
-                "name": name,
-                "quantity": (it.get("quantity") or "").strip(),
-                "unit": (it.get("unit") or "").strip(),
-            })
+            out.append(
+                {
+                    "name": name,
+                    "quantity": (it.get("quantity") or "").strip(),
+                    "unit": (it.get("unit") or "").strip(),
+                }
+            )
         logger.info("Vision(URL) extracted %d items.", len(out))
         return out[:40]
     except Exception:
@@ -625,11 +685,17 @@ def _vision_extract_items_with_openai(image_path: str) -> List[dict]:
 
         r = requests.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload, timeout=60,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=60,
         )
         if r.status_code != 200:
-            logger.warning("OpenAI Vision(base64) non-200: %s %s", r.status_code, r.text[:200])
+            logger.warning(
+                "OpenAI Vision(base64) non-200: %s %s", r.status_code, r.text[:200]
+            )
             return []
         raw = (r.json()["choices"][0]["message"]["content"] or "").strip()
         data = json.loads(raw)
@@ -638,11 +704,13 @@ def _vision_extract_items_with_openai(image_path: str) -> List[dict]:
             name = (it.get("name") or "").strip()
             if not name:
                 continue
-            out.append({
-                "name": name,
-                "quantity": (it.get("quantity") or "").strip(),
-                "unit": (it.get("unit") or "").strip(),
-            })
+            out.append(
+                {
+                    "name": name,
+                    "quantity": (it.get("quantity") or "").strip(),
+                    "unit": (it.get("unit") or "").strip(),
+                }
+            )
         logger.info("Vision(base64) extracted %d items.", len(out))
         return out
     except Exception:
@@ -695,23 +763,49 @@ def _store_upload_results(upload: PantryImageUpload, candidates: List[dict]) -> 
             upload.status = done
         except Exception:
             pass
-    upload.save(update_fields=[f for f in ("results", "results_json", "status") if hasattr(upload, f)])
+    upload.save(
+        update_fields=[
+            f for f in ("results", "results_json", "status") if hasattr(upload, f)
+        ]
+    )
 
 
 # =============================================================================
 # Loose matching + recipe helpers (existing)
 # =============================================================================
 
+
 def slugify(title: str) -> str:
     s = (title or "").strip().lower()
     s = re.sub(r"[^a-z0-9]+", "-", s)
     return re.sub(r"-+", "-", s).strip("-") or "recipe"
 
+
 SYNONYMS = {
-    "beef": [r"\bbeef\b", r"\bground\s+beef\b", r"\bsirloin\b", r"\bsteak\b", r"\btop\s+round\b", r"\bchuck\b"],
-    "corn": [r"\bcorn\b", r"\bsweet\s+corn\b", r"\bcorn\s+on\s+the\s+cob\b", r"\bcorn\s+kernels?\b"],
-    "bell pepper": [r"\bbell\s+pepper(s)?\b", r"\bred\s+pepper(s)?\b", r"\bgreen\s+pepper(s)?\b", r"\byellow\s+pepper(s)?\b", r"\bcapsicum\b"],
+    "beef": [
+        r"\bbeef\b",
+        r"\bground\s+beef\b",
+        r"\bsirloin\b",
+        r"\bsteak\b",
+        r"\btop\s+round\b",
+        r"\bchuck\b",
+    ],
+    "corn": [
+        r"\bcorn\b",
+        r"\bsweet\s+corn\b",
+        r"\bcorn\s+on\s+the\s+cob\b",
+        r"\bcorn\s+kernels?\b",
+    ],
+    "bell pepper": [
+        r"\bbell\s+pepper(s)?\b",
+        r"\bred\s+pepper(s)?\b",
+        r"\bgreen\s+pepper(s)?\b",
+        r"\byellow\s+pepper(s)?\b",
+        r"\bcapsicum\b",
+    ],
 }
+
+
 def is_match(pantry_item: str, candidate: str) -> bool:
     p = (pantry_item or "").strip().lower()
     c = (candidate or "").strip().lower()
@@ -728,12 +822,18 @@ def is_match(pantry_item: str, candidate: str) -> bool:
             return True
     return False
 
+
 def _normalize_ingredient(name: str) -> str:
     n = (name or "").strip().lower()
-    fixes = {r"\bbell\s*peper\b": "bell pepper", r"\bsweet\s*corn\b": "corn", r"\bscallions?\b": "green onion"}
+    fixes = {
+        r"\bbell\s*peper\b": "bell pepper",
+        r"\bsweet\s*corn\b": "corn",
+        r"\bscallions?\b": "green onion",
+    }
     for pat, repl in fixes.items():
         n = re.sub(pat, repl, n)
     return n
+
 
 def _get_session_recipe(source: str, rid_any, request) -> Optional[dict]:
     """
@@ -746,6 +846,7 @@ def _get_session_recipe(source: str, rid_any, request) -> Optional[dict]:
             return item
     return None
 
+
 def _get_session_list_for_source(request, source: str) -> list[dict]:
     """
     Returns the list of results for the given source from session.
@@ -756,26 +857,27 @@ def _get_session_list_for_source(request, source: str) -> list[dict]:
         return (
             bundle.get("ai")
             or request.session.get("recipes_results_ai", [])
-            or request.session.get("ai_recipes", [])  
+            or request.session.get("ai_recipes", [])
             or []
         )
     if source == "web":
         return (
             bundle.get("web")
             or request.session.get("recipes_results_web", [])
-            or request.session.get("web_recipes", []) 
+            or request.session.get("web_recipes", [])
             or []
         )
     return []
-
 
 
 # =============================================================================
 # Core pages & pantry CRUD
 # =============================================================================
 
+
 def home(request):
     return render(request, "core/home.html")
+
 
 def demo_mode(request):
     # Only allow in development; remove this guard if you want in prod.
@@ -785,19 +887,32 @@ def demo_mode(request):
 
     User = get_user_model()
     demo, _ = User.objects.get_or_create(
-        username="demo_user",
-        defaults={"email": "demo@smartrecipe.test"}
+        username="demo_user", defaults={"email": "demo@smartrecipe.test"}
     )
     # Make sure demo user cannot be used directly
     demo.set_unusable_password()
     demo.save()
 
     login(request, demo, backend="django.contrib.auth.backends.ModelBackend")
-    messages.info(request, "You're using a demo account. Changes won't be saved permanently.")
+    messages.info(
+        request, "You're using a demo account. Changes won't be saved permanently."
+    )
     return redirect("core:dashboard")
+
 
 @login_required
 def dashboard(request):
+    """Render the user dashboard with summaries and quick actions.
+
+    Template:
+        core/dashboard.html
+
+    Context:
+        - stats: dict with counts and recent items
+        - favorites: queryset of recent favorites
+        - targets: active NutritionTarget or None
+    """
+
     ingredients = request.user.ingredients.all()
     return render(
         request,
@@ -808,6 +923,7 @@ def dashboard(request):
             "upload_form": PantryImageUploadForm(),  # photo upload button
         },
     )
+
 
 @require_POST
 @login_required
@@ -826,6 +942,7 @@ def add_ingredient(request):
         messages.error(request, "Please correct the errors.")
     return redirect("core:dashboard")
 
+
 @require_POST
 @login_required
 def delete_ingredient(request, pk: int):
@@ -838,6 +955,7 @@ def delete_ingredient(request, pk: int):
 # =============================================================================
 # Pantry photo extraction — VIEWS
 # =============================================================================
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -861,7 +979,7 @@ def presign_s3_upload(request):
     except Exception:
         payload = {}
 
-    filename     = (payload.get("filename") or "upload.jpg").strip()
+    filename = (payload.get("filename") or "upload.jpg").strip()
     content_type = (payload.get("content_type") or "image/jpeg").strip()
 
     # Normalize extension; default to ".jpg" if client sent none
@@ -871,13 +989,11 @@ def presign_s3_upload(request):
     key = f"pantry_uploads/{uuid4().hex}{ext}"
 
     # ---- 2) Bucket / region from settings, else env (works when USE_S3 is off) ----
-    bucket = (
-        getattr(settings, "AWS_STORAGE_BUCKET_NAME", None)
-        or os.getenv("AWS_STORAGE_BUCKET_NAME")
+    bucket = getattr(settings, "AWS_STORAGE_BUCKET_NAME", None) or os.getenv(
+        "AWS_STORAGE_BUCKET_NAME"
     )
-    region = (
-        getattr(settings, "AWS_S3_REGION_NAME", None)
-        or os.getenv("AWS_S3_REGION_NAME")
+    region = getattr(settings, "AWS_S3_REGION_NAME", None) or os.getenv(
+        "AWS_S3_REGION_NAME"
     )
     if not bucket or not region:
         return JsonResponse(
@@ -890,7 +1006,9 @@ def presign_s3_upload(request):
     # Try explicit env keys first (handy for local .env); otherwise let
     # boto3's default provider chain load credentials (AWS CLI profile, EC2/ECS role, etc.)
     ak = os.getenv("AWS_ACCESS_KEY_ID") or getattr(settings, "AWS_ACCESS_KEY_ID", None)
-    sk = os.getenv("AWS_SECRET_ACCESS_KEY") or getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
+    sk = os.getenv("AWS_SECRET_ACCESS_KEY") or getattr(
+        settings, "AWS_SECRET_ACCESS_KEY", None
+    )
 
     if ak and sk:
         session = boto3.Session(
@@ -937,6 +1055,7 @@ def presign_s3_upload(request):
         status=200,
     )
 
+
 @login_required
 @require_http_methods(["POST"])
 def pantry_extract_start(request):
@@ -966,6 +1085,7 @@ def pantry_extract_start(request):
         # write via default storage (S3 in prod, filesystem in dev)
         from uuid import uuid4
         from pathlib import Path
+
         ext = (Path(uploaded.name).suffix or ".jpg").lower()
         if ext not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
             ext = ".jpg"
@@ -989,6 +1109,7 @@ def pantry_extract_start(request):
 
     return redirect("core:pantry_extract_review", upload_id=up.pk)
 
+
 @require_http_methods(["GET", "POST"])
 @login_required
 def pantry_upload_quick(request):
@@ -1004,7 +1125,9 @@ def pantry_upload_quick(request):
     up.user = request.user
     up.save()
 
-    candidates = _extract_candidates(up.image.path, request.build_absolute_uri(up.image.url))
+    candidates = _extract_candidates(
+        up.image.path, request.build_absolute_uri(up.image.url)
+    )
     _store_upload_results(up, candidates)
 
     return redirect("core:pantry_extract_review", upload_id=up.pk)
@@ -1020,7 +1143,11 @@ def pantry_extract_review(request, upload_id: int):
     up = get_object_or_404(PantryImageUpload, pk=upload_id, user=request.user)
 
     # Load saved candidates from either .results or .results_json
-    raw = up.results if getattr(up, "results", None) else getattr(up, "results_json", None)
+    raw = (
+        up.results
+        if getattr(up, "results", None)
+        else getattr(up, "results_json", None)
+    )
     if isinstance(raw, str):
         try:
             data = json.loads(raw) or {}
@@ -1054,16 +1181,24 @@ def pantry_extract_review(request, upload_id: int):
 
     class ReviewIngredientForm(forms.Form):
         name = forms.CharField(
-            required=False, max_length=255,
-            widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. bell pepper"}),
+            required=False,
+            max_length=255,
+            widget=forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. bell pepper"}
+            ),
         )
         quantity = forms.CharField(
             required=False,
-            widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. 2 or 200"}),
+            widget=forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. 2 or 200"}
+            ),
         )
         unit = forms.CharField(
-            required=False, max_length=32,
-            widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. g, pcs"}),
+            required=False,
+            max_length=32,
+            widget=forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. g, pcs"}
+            ),
         )
 
     extra_rows = 0 if initial else 8
@@ -1119,19 +1254,24 @@ def pantry_extract_review(request, upload_id: int):
                             Ingredient.objects.create(
                                 user=request.user,
                                 name=name,
-                                quantity=qty_dec,   # can be None if your field allows NULL
-                                unit=create_unit,   # NEVER NULL on create
+                                quantity=qty_dec,  # can be None if your field allows NULL
+                                unit=create_unit,  # NEVER NULL on create
                             )
                             added += 1
                 except IntegrityError:
                     # One bad row shouldn't kill the whole request
-                    messages.error(request, f"Could not save “{name}”. Please adjust and try again.")
+                    messages.error(
+                        request,
+                        f"Could not save “{name}”. Please adjust and try again.",
+                    )
                     continue
 
             if added or updated:
                 parts = []
-                if added: parts.append(f"added {added}")
-                if updated: parts.append(f"updated {updated}")
+                if added:
+                    parts.append(f"added {added}")
+                if updated:
+                    parts.append(f"updated {updated}")
                 messages.success(request, "Pantry updated: " + ", ".join(parts) + ".")
             else:
                 messages.info(request, "No items were added.")
@@ -1143,7 +1283,10 @@ def pantry_extract_review(request, upload_id: int):
     else:
         formset = ReviewSet(initial=initial)
 
-    return render(request, "core/pantry_review.html", {"upload": up, "formset": formset})
+    return render(
+        request, "core/pantry_review.html", {"upload": up, "formset": formset}
+    )
+
 
 @login_required
 def pantry_review(request, pk: int):
@@ -1166,15 +1309,19 @@ def pantry_upload(request):
         form = PantryImageUploadForm()
     return render(request, "core/pantry_upload.html", {"form": form})
 
+
 @login_required
 def pantry_upload_list(request):
-    uploads = PantryImageUpload.objects.filter(user=request.user).order_by("-created_at")
+    uploads = PantryImageUpload.objects.filter(user=request.user).order_by(
+        "-created_at"
+    )
     return render(request, "core/pantry_upload_list.html", {"uploads": uploads})
 
 
 # =============================================================================
 # New unified recipe flow (single button): search Spoonacular + generate with OpenAI
 # =============================================================================
+
 
 @login_required
 @require_http_methods(["POST"])
@@ -1200,7 +1347,9 @@ def recipes_search(request):
                 has_img = bool(r.get("image_url") or r.get("image"))
             else:
                 title = getattr(r, "title", None)
-                has_img = bool(getattr(r, "image_url", None) or getattr(r, "image", None))
+                has_img = bool(
+                    getattr(r, "image_url", None) or getattr(r, "image", None)
+                )
 
             if title and not has_img:
                 # 1) try to find a representative image
@@ -1213,7 +1362,9 @@ def recipes_search(request):
                 cached_url = None
                 if lookup_url:
                     try:
-                        cached_url = cache_remote_image_to_storage(lookup_url, default_storage)
+                        cached_url = cache_remote_image_to_storage(
+                            lookup_url, default_storage
+                        )
                     except Exception:
                         cached_url = None
 
@@ -1226,7 +1377,9 @@ def recipes_search(request):
                         setattr(r, "image_url", final_url)
 
     if not web_items and not ai_items:
-        messages.warning(request, "No recipes found at the moment. Try different items.")
+        messages.warning(
+            request, "No recipes found at the moment. Try different items."
+        )
         return redirect("core:dashboard")
 
     _combine_and_store_results(request, ai_items, web_items)
@@ -1252,9 +1405,7 @@ def recipes_results(request):
     ai = list(data.get("ai") or [])
     web = list(data.get("web") or [])
 
-
     # ---------- helpers (local to keep this view drop-in) ----------
-
 
     def _get(item, attr, default=None):
         if isinstance(item, dict):
@@ -1282,14 +1433,18 @@ def recipes_results(request):
         return (_get(item, "source", "") or "").lower() == "ai"
 
     def _has_image(item) -> bool:
-        return bool(_get(item, "image_url") or _get(item, "image") or _get(item, "thumb"))
+        return bool(
+            _get(item, "image_url") or _get(item, "image") or _get(item, "thumb")
+        )
 
     def _title_of(item) -> str:
         return (_get(item, "title") or _get(item, "name") or "").strip()
 
     def _spoonacular_thumb(title: str) -> str | None:
         """Return a small image URL for a dish title via Spoonacular."""
-        api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv("SPOONACULAR_API_KEY")
+        api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv(
+            "SPOONACULAR_API_KEY"
+        )
         if not api_key or not title:
             return None
         try:
@@ -1305,6 +1460,7 @@ def recipes_results(request):
         except Exception:
             pass
         return None
+
     # ----------------------------------------------------------------
 
     # Collect AI titles that need an image
@@ -1345,11 +1501,15 @@ def recipes_results(request):
         request.session["recipe_results"] = data
         request.session.modified = True
 
-    return render(request, "core/recipe_results.html", {
-        "combined": combined,
-        "ai_count": len(ai),
-        "web_count": len(web),
-    })
+    return render(
+        request,
+        "core/recipe_results.html",
+        {
+            "combined": combined,
+            "ai_count": len(ai),
+            "web_count": len(web),
+        },
+    )
 
 
 # =============================================================================
@@ -1360,6 +1520,7 @@ SPOON_MIN_MATCHED_API = 1
 SPOON_MIN_CONFIRMED = 1
 DRINK_TYPES = {"drink", "beverage", "beverages", "cocktail", "smoothie"}
 
+
 def _fallback_image_from_spoonacular(title: str) -> Optional[str]:
     api_key = os.getenv("SPOONACULAR_API_KEY")
     if not api_key or not title:
@@ -1367,11 +1528,18 @@ def _fallback_image_from_spoonacular(title: str) -> Optional[str]:
     try:
         r = requests.get(
             "https://api.spoonacular.com/recipes/complexSearch",
-            params={"apiKey": api_key, "query": title, "number": 1, "addRecipeInformation": True},
+            params={
+                "apiKey": api_key,
+                "query": title,
+                "number": 1,
+                "addRecipeInformation": True,
+            },
             timeout=12,
         )
         if r.status_code != 200:
-            logger.warning("Spoonacular fallback image %s: %s", r.status_code, r.text[:200])
+            logger.warning(
+                "Spoonacular fallback image %s: %s", r.status_code, r.text[:200]
+            )
             return None
         items = (r.json() or {}).get("results") or []
         if not items:
@@ -1381,8 +1549,37 @@ def _fallback_image_from_spoonacular(title: str) -> Optional[str]:
         logger.exception("Spoonacular fallback request failed")
         return None
 
+
 @login_required
 def ai_recipes(request):
+    """Generate recipe ideas using OpenAI and render results.
+
+    Purpose:
+        Turn the user's pantry items (and an optional "kind" selector) into
+        3–6 suggested recipes via the OpenAI API. Falls back to a placeholder
+        image (Spoonacular mini lookup) if the AI result has no image URL.
+
+    Methods:
+        POST: expects form field "kind" in {"food","drink"} and reads current user's pantry.
+        GET: not supported (redirects to dashboard).
+
+    Templates:
+        Renders "core/ai_results.html" with context:
+            - recipes: list[dict] normalized recipe items
+            - pantry: list[str] of user ingredient names
+            - kind: str
+
+    External calls:
+        - OpenAI Responses API (JSON content expected)
+        - Spoonacular image lookup (fallback only)
+
+    Errors:
+        - Gracefully handles API/network errors and shows an empty-state message.
+
+    Returns:
+        HttpResponse with status 200 on success; redirect to dashboard otherwise.
+    """
+
     if request.method != "POST":
         messages.error(request, "Use the button to generate AI recipes.")
         return redirect("core:dashboard")
@@ -1406,12 +1603,22 @@ def ai_recipes(request):
             )
             r = requests.post(
                 "https://api.openai.com/v1/images/generations",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={"model": "gpt-image-1", "prompt": prompt, "size": "1024x1024", "n": 1},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-image-1",
+                    "prompt": prompt,
+                    "size": "1024x1024",
+                    "n": 1,
+                },
                 timeout=60,
             )
             if r.status_code == 403:
-                logger.warning("OpenAI image gen blocked (403). Skipping images this run.")
+                logger.warning(
+                    "OpenAI image gen blocked (403). Skipping images this run."
+                )
                 return None
             if r.status_code != 200:
                 logger.error("OpenAI image gen %s: %s", r.status_code, r.text)
@@ -1433,9 +1640,9 @@ def ai_recipes(request):
         f"The recipes must be type: {kind}. "
         "Return STRICT JSON ONLY with this schema:\n"
         "{"
-        "  \"recipes\": [ {"
-        "      \"title\": string, \"ingredients\": [string], \"steps\": [string],"
-        "      \"tags\": [string], \"cook_time_minutes\": integer"
+        '  "recipes": [ {'
+        '      "title": string, "ingredients": [string], "steps": [string],'
+        '      "tags": [string], "cook_time_minutes": integer'
         "  } ]"
         "}"
     )
@@ -1444,13 +1651,18 @@ def ai_recipes(request):
     try:
         resp = requests.post(
             "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": "gpt-4o-mini",
                 "response_format": {"type": "json_object"},
                 "temperature": 0.7,
-                "messages": [{"role": "system", "content": system_msg},
-                             {"role": "user", "content": user_msg}],
+                "messages": [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg},
+                ],
             },
             timeout=60,
         )
@@ -1524,22 +1736,55 @@ def ai_recipes(request):
 @login_required
 @require_POST
 def web_recipes(request):
-    kind = (request.POST.get("kind") or request.POST.get("type") or "food").strip().lower()
-    request.session["last_kind"] = kind 
+    """Find real recipes from Spoonacular based on the user's pantry.
+
+    Purpose:
+        Combine user's saved ingredients into a Spoonacular 'findByIngredients'
+        query, enrich with 'informationBulk', and display ranked results.
+
+    Methods:
+        POST: expects "kind" in {"food","drink"}; reads user's Ingredient objects.
+        GET: not supported (redirects to dashboard).
+
+    Templates:
+        "core/web_results.html" with context:
+            - results: list[dict] of normalized Spoonacular recipes
+            - pantry: list[str] of user ingredient names
+            - kind: str
+
+    External calls:
+        Spoonacular REST API (two-step call). Handles quota (402) and network errors.
+
+    Returns:
+        HttpResponse 200 on success. On error, renders the same template with [] results.
+    """
+
+    kind = (
+        (request.POST.get("kind") or request.POST.get("type") or "food").strip().lower()
+    )
+    request.session["last_kind"] = kind
 
     pantry_raw = list(request.user.ingredients.values_list("name", flat=True))
     pantry = [_normalize_ingredient(x) for x in pantry_raw if x and x.strip()]
     if not pantry:
         messages.warning(request, "Your pantry is empty.")
         return redirect("core:dashboard")
-    
+
     # If drinks are requested, do not hit Spoonacular at all.
     if kind == "drink":
-        request.session["web_recipes"] = []  # ensure combined/legacy views don't show stale web results
+        request.session["web_recipes"] = (
+            []
+        )  # ensure combined/legacy views don't show stale web results
         request.session.modified = True
-        messages.info(request, "Showing AI drink recipes only; web results for drinks can be unreliable.")
-        return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
-
+        messages.info(
+            request,
+            "Showing AI drink recipes only; web results for drinks can be unreliable.",
+        )
+        return render(
+            request,
+            "core/web_results.html",
+            {"results": [], "pantry": pantry, "kind": kind},
+        )
 
     api_key = os.getenv("SPOONACULAR_API_KEY")
     if not api_key:
@@ -1572,49 +1817,85 @@ def web_recipes(request):
             messages.warning(request, msg)
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
         # ────────────────────────────────────────────────────────────────────────
 
         if find_resp.status_code != 200:
-            logger.error("findByIngredients %s: %s", find_resp.status_code, find_resp.text)
+            logger.error(
+                "findByIngredients %s: %s", find_resp.status_code, find_resp.text
+            )
             messages.error(request, f"Recipe search failed ({find_resp.status_code}).")
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
 
         found = [
-            r for r in (find_resp.json() or [])
+            r
+            for r in (find_resp.json() or [])
             if (r.get("usedIngredientCount") or 0) >= SPOON_MIN_MATCHED_API
         ]
         if not found:
             messages.info(request, "No good matches—try adding one more ingredient.")
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
 
         ids = [str(item["id"]) for item in found if "id" in item][:12]
         if not ids:
             messages.info(request, "No good matches—try adding one more ingredient.")
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
 
         info_resp = requests.get(
             "https://api.spoonacular.com/recipes/informationBulk",
-            params={"apiKey": api_key, "ids": ",".join(ids), "includeNutrition": "true"},
+            params={
+                "apiKey": api_key,
+                "ids": ",".join(ids),
+                "includeNutrition": "true",
+            },
             timeout=20,
         )
         if info_resp.status_code == 429:
-            messages.warning(request, "Spoonacular rate limit reached. Showing AI results only for now.")
+            messages.warning(
+                request,
+                "Spoonacular rate limit reached. Showing AI results only for now.",
+            )
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
         if info_resp.status_code != 200:
-            logger.error("informationBulk %s: %s", info_resp.status_code, info_resp.text)
+            logger.error(
+                "informationBulk %s: %s", info_resp.status_code, info_resp.text
+            )
             messages.error(request, f"Recipe details failed ({info_resp.status_code}).")
             request.session["web_recipes"] = []
             request.session.modified = True
-            return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+            return render(
+                request,
+                "core/web_results.html",
+                {"results": [], "pantry": pantry, "kind": kind},
+            )
 
         details = {str(d["id"]): d for d in info_resp.json() if "id" in d}
 
@@ -1623,7 +1904,9 @@ def web_recipes(request):
             sid = str(item.get("id"))
             det = details.get(sid, {})
             # Filter out drinks just in case Spoonacular mislabeled things
-            dish_types = set((det.get("dishTypes") or []) + (det.get("occasions") or []))
+            dish_types = set(
+                (det.get("dishTypes") or []) + (det.get("occasions") or [])
+            )
             is_drink = bool(dish_types & DRINK_TYPES)
             if is_drink:
                 continue
@@ -1635,11 +1918,19 @@ def web_recipes(request):
             def norm(s: Optional[str]) -> str:
                 return (s or "").strip().lower()
 
-            used_api = [norm(u.get("name")) for u in (item.get("usedIngredients") or [])]
-            missed_api = [norm(m.get("name")) for m in (item.get("missedIngredients") or [])]
+            used_api = [
+                norm(u.get("name")) for u in (item.get("usedIngredients") or [])
+            ]
+            missed_api = [
+                norm(m.get("name")) for m in (item.get("missedIngredients") or [])
+            ]
 
-            used_confirmed = sorted({p for p in pantry if any(is_match(p, cand) for cand in used_api)})
-            missed_clean = sorted({m for m in missed_api if not any(is_match(p, m) for p in pantry)})
+            used_confirmed = sorted(
+                {p for p in pantry if any(is_match(p, cand) for cand in used_api)}
+            )
+            missed_clean = sorted(
+                {m for m in missed_api if not any(is_match(p, m) for p in pantry)}
+            )
 
             if len(used_confirmed) < SPOON_MIN_CONFIRMED:
                 continue
@@ -1648,57 +1939,82 @@ def web_recipes(request):
             steps_list = []
             an = det.get("analyzedInstructions") or []
             if isinstance(an, list) and an and isinstance(an[0], dict):
-                steps_list = [s.get("step") for s in (an[0].get("steps") or []) if s.get("step")]
+                steps_list = [
+                    s.get("step") for s in (an[0].get("steps") or []) if s.get("step")
+                ]
             if not steps_list and det.get("instructions"):
-                steps_list = [s.strip() for s in det["instructions"].split("\n") if s.strip()]
+                steps_list = [
+                    s.strip() for s in det["instructions"].split("\n") if s.strip()
+                ]
 
             title = det.get("title") or item.get("title")
             image = det.get("image") or item.get("image")
 
-            results.append({
-                "id": int(sid),
-                "title": title,
-                "label": title,
-                "image": image,
-                "image_url": image,
-                "url": url,
-                "readyInMinutes": det.get("readyInMinutes"),
-                "servings": det.get("servings"),
-                "usedIngredientCount": len(used_confirmed),
-                "missedIngredientCount": len(missed_clean),
-                "usedIngredients": used_confirmed,
-                "missedIngredients": missed_clean,
-                "ingredients": ingredients_full,
-                "extendedIngredients": ingredients_full,
-                "steps": steps_list,
-                "instructions": "\n".join(steps_list) if steps_list else det.get("instructions", ""),
-                "nutrition": det.get("nutrition") or {},
-            })
+            results.append(
+                {
+                    "id": int(sid),
+                    "title": title,
+                    "label": title,
+                    "image": image,
+                    "image_url": image,
+                    "url": url,
+                    "readyInMinutes": det.get("readyInMinutes"),
+                    "servings": det.get("servings"),
+                    "usedIngredientCount": len(used_confirmed),
+                    "missedIngredientCount": len(missed_clean),
+                    "usedIngredients": used_confirmed,
+                    "missedIngredients": missed_clean,
+                    "ingredients": ingredients_full,
+                    "extendedIngredients": ingredients_full,
+                    "steps": steps_list,
+                    "instructions": (
+                        "\n".join(steps_list)
+                        if steps_list
+                        else det.get("instructions", "")
+                    ),
+                    "nutrition": det.get("nutrition") or {},
+                }
+            )
 
         request.session["web_recipes"] = results
         request.session.modified = True
-        return render(request, "core/web_results.html", {"results": results, "pantry": pantry, "kind": kind})
+        return render(
+            request,
+            "core/web_results.html",
+            {"results": results, "pantry": pantry, "kind": kind},
+        )
 
     except requests.RequestException as e:
         logger.exception("Spoonacular network error")
         messages.error(request, f"Network error calling Spoonacular: {e}")
         request.session["web_recipes"] = []
         request.session.modified = True
-        return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+        return render(
+            request,
+            "core/web_results.html",
+            {"results": [], "pantry": pantry, "kind": kind},
+        )
     except Exception as e:
         logger.exception("Spoonacular parsing error")
         messages.error(request, f"Unexpected error: {e}")
         request.session["web_recipes"] = []
         request.session.modified = True
-        return render(request, "core/web_results.html", {"results": [], "pantry": pantry, "kind": kind})
+        return render(
+            request,
+            "core/web_results.html",
+            {"results": [], "pantry": pantry, "kind": kind},
+        )
 
 
 # =============================================================================
 # Recipe detail & Favorites
 # =============================================================================
 
+
 @login_required
-def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Optional[int] = None):
+def recipe_detail(
+    request, source: str, rid: Optional[str] = None, recipe_id: Optional[int] = None
+):
     """
     Show detail for a result stored in session.
     - If it's an AI recipe and it has no image, attach a best-effort image.
@@ -1721,7 +2037,9 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
             title = (recipe.get("title") or recipe.get("name") or "").strip()
             if title:
                 remote_url = spoonacular_image_for(title)
-                cached_url = cache_remote_image_to_storage(remote_url) if remote_url else None
+                cached_url = (
+                    cache_remote_image_to_storage(remote_url) if remote_url else None
+                )
                 final_url = cached_url or remote_url
                 if final_url:
                     recipe["image_url"] = final_url
@@ -1745,8 +2063,10 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     # =====================================================================
     try:
         if source == "web":
-            has_ings  = bool(recipe.get("extendedIngredients"))
-            has_steps = bool(recipe.get("analyzedInstructions") or recipe.get("instructions"))
+            has_ings = bool(recipe.get("extendedIngredients"))
+            has_steps = bool(
+                recipe.get("analyzedInstructions") or recipe.get("instructions")
+            )
 
             # Only fetch details if still missing
             if (not has_ings or not has_steps) and (recipe.get("id") or recipe_id):
@@ -1765,7 +2085,9 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                     recipe["analyzedInstructions"] = info["analyzedInstructions"]
                 if info.get("instructions") and not recipe.get("instructions"):
                     recipe["instructions"] = info["instructions"]
-                if info.get("image") and not (recipe.get("image") or recipe.get("image_url")):
+                if info.get("image") and not (
+                    recipe.get("image") or recipe.get("image_url")
+                ):
                     recipe["image"] = info["image"]
                     recipe["image_url"] = info["image"]
 
@@ -1778,6 +2100,7 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                     recipe["meta"] = meta
 
                 nut = (info.get("nutrition") or {}).get("nutrients") or []
+
                 def _nut(name):
                     for n in nut:
                         if (n.get("name") or "").lower() == name:
@@ -1786,12 +2109,11 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
 
                 if nut and not recipe.get("nutrition"):
                     recipe["nutrition"] = {
-                        "calories":  int(round(float(_nut("calories") or 0))),
+                        "calories": int(round(float(_nut("calories") or 0))),
                         "protein_g": int(round(float(_nut("protein") or 0))),
-                        "carbs_g":   int(round(float(_nut("carbohydrates") or 0))),
-                        "fat_g":     int(round(float(_nut("fat") or 0))),
+                        "carbs_g": int(round(float(_nut("carbohydrates") or 0))),
+                        "fat_g": int(round(float(_nut("fat") or 0))),
                     }
-
 
                 # write back to session so future visits work
                 bundle = request.session.get("recipe_results") or {}
@@ -1800,9 +2122,13 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
                     for it in lst:
                         if str(it.get("id")) == str(sid):
                             if recipe.get("extendedIngredients"):
-                                it["extendedIngredients"] = recipe["extendedIngredients"]
+                                it["extendedIngredients"] = recipe[
+                                    "extendedIngredients"
+                                ]
                             if recipe.get("analyzedInstructions"):
-                                it["analyzedInstructions"] = recipe["analyzedInstructions"]
+                                it["analyzedInstructions"] = recipe[
+                                    "analyzedInstructions"
+                                ]
                             if recipe.get("instructions"):
                                 it["instructions"] = recipe["instructions"]
                             if recipe.get("image") and not it.get("image"):
@@ -1814,7 +2140,6 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     except Exception:
         # Never break the page; just log if you want
         logger.exception("Unhandled error enriching web recipe in detail view")
-
 
     # =====================================================================
     # 3) Normalize meta + build instruction list with robust fallbacks
@@ -1830,7 +2155,9 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     if isinstance(ai, list) and ai:
         block0 = ai[0] or {}
         raw_steps = block0.get("steps") or []
-        steps_list = [s.get("step") for s in raw_steps if isinstance(s, dict) and s.get("step")]
+        steps_list = [
+            s.get("step") for s in raw_steps if isinstance(s, dict) and s.get("step")
+        ]
 
     # Fallbacks: steps/method/directions/procedure/plain-text instructions
     if not steps_list:
@@ -1862,47 +2189,59 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
             return [s for s in o if s and s.strip()]
 
         if "smoothie" in title_l or "shake" in title_l:
-            steps_list = make([
-                "Add all ingredients to a blender.",
-                "Blend until completely smooth.",
-                "Taste and adjust sweetness or thickness as desired.",
-                "Pour into a glass and serve immediately."
-            ])
+            steps_list = make(
+                [
+                    "Add all ingredients to a blender.",
+                    "Blend until completely smooth.",
+                    "Taste and adjust sweetness or thickness as desired.",
+                    "Pour into a glass and serve immediately.",
+                ]
+            )
         elif "oatmeal" in title_l or "overnight oats" in title_l:
-            steps_list = make([
-                "Cook oats according to package directions (water or milk).",
-                "Stir in the remaining ingredients.",
-                "Simmer 1–2 minutes to warm through (optional).",
-                "Serve warm and top as desired."
-            ])
+            steps_list = make(
+                [
+                    "Cook oats according to package directions (water or milk).",
+                    "Stir in the remaining ingredients.",
+                    "Simmer 1–2 minutes to warm through (optional).",
+                    "Serve warm and top as desired.",
+                ]
+            )
         elif "toast" in title_l or "sandwich" in title_l:
-            steps_list = make([
-                "Toast the bread to your liking.",
-                "Spread almond butter evenly on the toast.",
-                "Top with sliced banana; drizzle honey if using.",
-                "Serve immediately."
-            ])
+            steps_list = make(
+                [
+                    "Toast the bread to your liking.",
+                    "Spread almond butter evenly on the toast.",
+                    "Top with sliced banana; drizzle honey if using.",
+                    "Serve immediately.",
+                ]
+            )
         elif "salad" in title_l or "bowl" in title_l:
-            steps_list = make([
-                "Chop or prep all ingredients as needed.",
-                "Combine in a bowl.",
-                "Dress, season with salt and pepper, and toss to coat.",
-                "Serve."
-            ])
+            steps_list = make(
+                [
+                    "Chop or prep all ingredients as needed.",
+                    "Combine in a bowl.",
+                    "Dress, season with salt and pepper, and toss to coat.",
+                    "Serve.",
+                ]
+            )
         elif "energy ball" in title_l or "balls" in title_l or "bites" in title_l:
-            steps_list = make([
-                "In a bowl, stir all ingredients until evenly combined.",
-                "Chill the mixture for 15–20 minutes to firm up.",
-                "Roll into bite-size balls.",
-                "Refrigerate in an airtight container."
-            ])
+            steps_list = make(
+                [
+                    "In a bowl, stir all ingredients until evenly combined.",
+                    "Chill the mixture for 15–20 minutes to firm up.",
+                    "Roll into bite-size balls.",
+                    "Refrigerate in an airtight container.",
+                ]
+            )
         else:
-            steps_list = make([
-                "Prep ingredients (wash, peel, chop as needed).",
-                "Combine and season to taste.",
-                "Cook or chill if appropriate.",
-                "Serve."
-            ])
+            steps_list = make(
+                [
+                    "Prep ingredients (wash, peel, chop as needed).",
+                    "Combine and season to taste.",
+                    "Cook or chill if appropriate.",
+                    "Serve.",
+                ]
+            )
 
     # =====================================================================
     # 4) Favorites state for the CTA
@@ -1941,7 +2280,9 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
     if not ingredients_list:
         alt_ing = recipe.get("ingredients") or meta.get("ingredients")
         if isinstance(alt_ing, list):
-            ingredients_list = [s.strip() for s in alt_ing if isinstance(s, str) and s.strip()]
+            ingredients_list = [
+                s.strip() for s in alt_ing if isinstance(s, str) and s.strip()
+            ]
 
     from django.urls import reverse  # already imported near the top of file
 
@@ -1968,7 +2309,7 @@ def recipe_detail(request, source: str, rid: Optional[str] = None, recipe_id: Op
             "already_saved": already_saved,
             "favorite_pk": favorite_pk,
             "current_id_str": key_str,
-            "back_url": back_url,  
+            "back_url": back_url,
         },
     )
 
@@ -1984,13 +2325,17 @@ def favorite_detail(request, pk: int):
     # --- Normalize ingredients/steps from JSON ---
     ingredients = []
     if isinstance(fav.ingredients_json, list):
-        ingredients = [s.strip() for s in fav.ingredients_json if isinstance(s, str) and s.strip()]
+        ingredients = [
+            s.strip() for s in fav.ingredients_json if isinstance(s, str) and s.strip()
+        ]
     elif fav.ingredients_json:
         ingredients = [str(fav.ingredients_json).strip()]
 
     steps_list = []
     if isinstance(fav.steps_json, list):
-        steps_list = [s.strip() for s in fav.steps_json if isinstance(s, str) and s.strip()]
+        steps_list = [
+            s.strip() for s in fav.steps_json if isinstance(s, str) and s.strip()
+        ]
     elif isinstance(fav.steps_json, str):
         steps_list = [s.strip() for s in fav.steps_json.split("\n") if s.strip()]
 
@@ -2007,9 +2352,9 @@ def favorite_detail(request, pk: int):
     }
 
     back_url = (
-    request.session.get("last_results_url")
-    or request.META.get("HTTP_REFERER")
-    or reverse("core:favorites")   # sensible fallback for favorites
+        request.session.get("last_results_url")
+        or request.META.get("HTTP_REFERER")
+        or reverse("core:favorites")  # sensible fallback for favorites
     )
 
     return render(
@@ -2019,16 +2364,17 @@ def favorite_detail(request, pk: int):
             "recipe": recipe,
             "recipe_id": None,
             "rid": None,
-            "source": fav.source,                  # "ai" or "web"
+            "source": fav.source,  # "ai" or "web"
             "steps_list": steps_list,
             "ingredients_list": ingredients,
             "image_url_final": fav.image_url or "",
-            "already_saved": True,                 # it's a favorite
+            "already_saved": True,  # it's a favorite
             "favorite_pk": fav.pk,
             "current_id_str": str(fav.external_id or fav.pk),  # used by Log Meal form
-            "back_url": back_url, 
+            "back_url": back_url,
         },
     )
+
 
 @login_required
 @require_POST
@@ -2052,7 +2398,9 @@ def save_favorite(request, source, recipe_id):
     image_url = recipe.get("image_url") or recipe.get("image") or ""
 
     # Best-effort macros (ID for web; title for AI)
-    macros = spoonacular_macros_for(external_id if source == "web" else None, title=title)
+    macros = spoonacular_macros_for(
+        external_id if source == "web" else None, title=title
+    )
 
     # ---- normalize ingredients ----
     ingredients_raw = (
@@ -2087,18 +2435,25 @@ def save_favorite(request, source, recipe_id):
     )
 
     steps: list[str] = []
+
     def _norm_list(lst):
-        return [str(s).strip() for s in lst if isinstance(s, (str, int, float)) and str(s).strip()]
+        return [
+            str(s).strip()
+            for s in lst
+            if isinstance(s, (str, int, float)) and str(s).strip()
+        ]
 
     if isinstance(steps_raw, str):
-        parts = [p.strip() for p in steps_raw.replace("\r", "").split("\n") if p.strip()]
+        parts = [
+            p.strip() for p in steps_raw.replace("\r", "").split("\n") if p.strip()
+        ]
         if not parts:
             parts = [p.strip() for p in steps_raw.split(". ") if p.strip()]
         steps = parts
     elif isinstance(steps_raw, list):
         if steps_raw and isinstance(steps_raw[0], dict) and "steps" in steps_raw[0]:
             for block in steps_raw:
-                for st in (block.get("steps") or []):
+                for st in block.get("steps") or []:
                     txt = (st.get("step") or "").strip()
                     if txt:
                         steps.append(txt)
@@ -2107,49 +2462,64 @@ def save_favorite(request, source, recipe_id):
 
     if not steps and source == "ai":
         title_l = title.lower()
-        def _make(seq): return [s for s in seq if s and s.strip()]
+
+        def _make(seq):
+            return [s for s in seq if s and s.strip()]
+
         if "smoothie" in title_l or "shake" in title_l:
-            steps = _make([
-                "Add all ingredients to a blender.",
-                "Blend until completely smooth.",
-                "Taste and adjust sweetness or thickness as desired.",
-                "Pour into a glass and serve immediately.",
-            ])
+            steps = _make(
+                [
+                    "Add all ingredients to a blender.",
+                    "Blend until completely smooth.",
+                    "Taste and adjust sweetness or thickness as desired.",
+                    "Pour into a glass and serve immediately.",
+                ]
+            )
         elif "oatmeal" in title_l or "overnight oats" in title_l:
-            steps = _make([
-                "Cook oats according to package directions (water or milk).",
-                "Stir in the remaining ingredients.",
-                "Simmer 1–2 minutes to warm through (optional).",
-                "Serve warm and top as desired.",
-            ])
+            steps = _make(
+                [
+                    "Cook oats according to package directions (water or milk).",
+                    "Stir in the remaining ingredients.",
+                    "Simmer 1–2 minutes to warm through (optional).",
+                    "Serve warm and top as desired.",
+                ]
+            )
         elif "toast" in title_l or "sandwich" in title_l:
-            steps = _make([
-                "Toast the bread to your liking.",
-                "Spread almond butter evenly on the toast.",
-                "Top with sliced banana; drizzle honey if using.",
-                "Serve immediately.",
-            ])
+            steps = _make(
+                [
+                    "Toast the bread to your liking.",
+                    "Spread almond butter evenly on the toast.",
+                    "Top with sliced banana; drizzle honey if using.",
+                    "Serve immediately.",
+                ]
+            )
         elif "salad" in title_l or "bowl" in title_l:
-            steps = _make([
-                "Chop or prep all ingredients as needed.",
-                "Combine in a bowl.",
-                "Dress, season with salt and pepper, and toss to coat.",
-                "Serve.",
-            ])
+            steps = _make(
+                [
+                    "Chop or prep all ingredients as needed.",
+                    "Combine in a bowl.",
+                    "Dress, season with salt and pepper, and toss to coat.",
+                    "Serve.",
+                ]
+            )
         elif "energy ball" in title_l or "balls" in title_l or "bites" in title_l:
-            steps = _make([
-                "In a bowl, stir all ingredients until evenly combined.",
-                "Chill the mixture for 15–20 minutes to firm up.",
-                "Roll into bite-size balls.",
-                "Refrigerate in an airtight container.",
-            ])
+            steps = _make(
+                [
+                    "In a bowl, stir all ingredients until evenly combined.",
+                    "Chill the mixture for 15–20 minutes to firm up.",
+                    "Roll into bite-size balls.",
+                    "Refrigerate in an airtight container.",
+                ]
+            )
         else:
-            steps = _make([
-                "Prep ingredients (wash, peel, chop as needed).",
-                "Combine and season to taste.",
-                "Cook or chill if appropriate.",
-                "Serve.",
-            ])
+            steps = _make(
+                [
+                    "Prep ingredients (wash, peel, chop as needed).",
+                    "Combine and season to taste.",
+                    "Cook or chill if appropriate.",
+                    "Serve.",
+                ]
+            )
 
     # Persist (idempotent)
     try:
@@ -2162,10 +2532,10 @@ def save_favorite(request, source, recipe_id):
                 "image_url": image_url,
                 "ingredients_json": ingredients,
                 "steps_json": steps,
-                "calories":  macros.get("calories"),
+                "calories": macros.get("calories"),
                 "protein_g": macros.get("protein_g"),
-                "carbs_g":   macros.get("carbs_g"),
-                "fat_g":     macros.get("fat_g"),
+                "carbs_g": macros.get("carbs_g"),
+                "fat_g": macros.get("fat_g"),
             },
         )
 
@@ -2173,17 +2543,23 @@ def save_favorite(request, source, recipe_id):
         updated_fields = []
         if not created:
             if image_url and not obj.image_url:
-                obj.image_url = image_url; updated_fields.append("image_url")
+                obj.image_url = image_url
+                updated_fields.append("image_url")
             if ingredients and not obj.ingredients_json:
-                obj.ingredients_json = ingredients; updated_fields.append("ingredients_json")
+                obj.ingredients_json = ingredients
+                updated_fields.append("ingredients_json")
             if steps and not obj.steps_json:
-                obj.steps_json = steps; updated_fields.append("steps_json")
+                obj.steps_json = steps
+                updated_fields.append("steps_json")
             if title and obj.title != title[:200]:
-                obj.title = title[:200]; updated_fields.append("title")
+                obj.title = title[:200]
+                updated_fields.append("title")
 
             # Also backfill macros if missing and we fetched some
             for fld in ("calories", "protein_g", "carbs_g", "fat_g"):
-                if getattr(obj, fld) in (None, Decimal("0")) and macros.get(fld) not in (None, ""):
+                if getattr(obj, fld) in (None, Decimal("0")) and macros.get(
+                    fld
+                ) not in (None, ""):
                     setattr(obj, fld, macros.get(fld))
                     updated_fields.append(fld)
 
@@ -2192,7 +2568,15 @@ def save_favorite(request, source, recipe_id):
 
         messages.success(
             request,
-            "Saved to Favorites." if created else ("Updated your Favorite." if updated_fields else "Already in your Favorites.")
+            (
+                "Saved to Favorites."
+                if created
+                else (
+                    "Updated your Favorite."
+                    if updated_fields
+                    else "Already in your Favorites."
+                )
+            ),
         )
     except Exception as e:
         logger.exception("Failed to save favorite: %s", e)
@@ -2200,10 +2584,12 @@ def save_favorite(request, source, recipe_id):
 
     return redirect("core:favorites")
 
+
 @login_required
 def favorites_list(request):
     items = request.user.saved_recipes.all()
     return render(request, "core/favorites.html", {"items": items})
+
 
 @login_required
 @require_POST
@@ -2217,6 +2603,7 @@ def favorite_delete(request, pk: int):
 # =============================================================================
 # CRUD for SavedRecipe
 # =============================================================================
+
 
 @login_required
 def recipe_create(request):
@@ -2232,6 +2619,7 @@ def recipe_create(request):
         form = SavedRecipeForm()
     return render(request, "core/recipe_form.html", {"form": form})
 
+
 @login_required
 def recipe_update(request, pk):
     obj = get_object_or_404(SavedRecipe, pk=pk)
@@ -2245,6 +2633,7 @@ def recipe_update(request, pk):
     else:
         form = SavedRecipeForm(instance=obj)
     return render(request, "core/recipe_form.html", {"form": form, "recipe": obj})
+
 
 @require_POST
 @login_required
@@ -2260,13 +2649,35 @@ def recipe_delete(request, pk):
 # Nutrition targets & Meal plan
 # =============================================================================
 
+
 def _monday_for(anchor: dt.date) -> dt.date:
     return anchor - dt.timedelta(days=anchor.weekday())
 
+
 def suggest_recipes_for_gaps(target, totals, search_fn, max_items: int = 4):
+    """Heuristic helper to suggest recipes when the user's plan has nutrition gaps.
+
+    Args:
+        user (User): The current user.
+        search_fn (Callable): Callable with signature like:
+            search_fn(query: str, number: int, **kwargs) -> dict or list
+        query (str, optional): Free-text to bias results. Defaults to "balanced easy meal".
+
+    Behavior:
+        Calls the provided search_fn (typically a Spoonacular wrapper) with 'number=24'
+        and optional extras (e.g., add_recipe_nutrition). Swallows unsupported kwargs
+        at the service layer.
+
+    Returns:
+        list[dict]: Normalized candidate recipes (may be empty).
+
+    Raises:
+        None directly. Catches HTTP errors, logs, and returns [] so the UI degrades gracefully.
+
+    Notes:
+        Keep this pure-ish (no DB writes). It simplifies testing.
     """
-    Build suggestions that keep the real Spoonacular 'id' so links go to /recipes/web/<id>/.
-    """
+
     # Figure out what you need most today
     protein_gap = max((target.protein_g or 0) - (totals.protein_g or 0), 0)
     calorie_gap = max((target.calories or 0) - (totals.calories or 0), 0)
@@ -2301,18 +2712,22 @@ def suggest_recipes_for_gaps(target, totals, search_fn, max_items: int = 4):
 
         protein_g, calories = _extract_protein_and_calories(r)
 
-        items.append({
-            "id": rid,                # KEEP the real Spoonacular ID
-            "title": r.get("title") or "Recipe",
-            "image": image_url,
-            "protein_g": protein_g,
-            "calories": calories,
-            "source": "web",          # IMPORTANT: mark as web
-        })
+        items.append(
+            {
+                "id": rid,  # KEEP the real Spoonacular ID
+                "title": r.get("title") or "Recipe",
+                "image": image_url,
+                "protein_g": protein_g,
+                "calories": calories,
+                "source": "web",  # IMPORTANT: mark as web
+            }
+        )
 
     # Rank: prefer more protein when protein is short, otherwise aim under the calorie gap
     if protein_gap >= 20:
-        items.sort(key=lambda x: (-x["protein_g"], x["calories"]))  # more protein, lower cals
+        items.sort(
+            key=lambda x: (-x["protein_g"], x["calories"])
+        )  # more protein, lower cals
     else:
         items.sort(key=lambda x: (abs(calorie_gap - x["calories"]), -x["protein_g"]))
 
@@ -2352,7 +2767,9 @@ def nutrition_target_upsert(request):
 
     # 2) Compute totals and today's logged meals
     totals = compute_daily_totals(request.user, today, target)
-    todays_meals = LoggedMeal.objects.filter(user=request.user, date=today).order_by("id")
+    todays_meals = LoggedMeal.objects.filter(user=request.user, date=today).order_by(
+        "id"
+    )
 
     # 3) Suggestions (guarded)
     # Suggestions: safe wrapper so missing stubs / API issues never crash the page
@@ -2402,7 +2819,7 @@ def nutrition_target_upsert(request):
             "analyzedInstructions": info.get("analyzedInstructions") or [],
             # sometimes Spoonacular returns plain-text instructions – keep them too:
             "instructions": info.get("instructions"),
-            "nutrition": {                  
+            "nutrition": {
                 "calories": s.get("calories"),
                 "protein_g": s.get("protein_g"),
                 # add carbs_g/fat_g if you compute them later
@@ -2418,7 +2835,6 @@ def nutrition_target_upsert(request):
 
     request.session["recipe_results"] = bundle
     request.session.modified = True
-
 
     # 4) Merge suggestions into the session bundle used by recipe_detail
     #    IMPORTANT: do not overwrite with raw suggestions; normalize + dedupe.
@@ -2440,19 +2856,21 @@ def nutrition_target_upsert(request):
         ext_ing = _get(s, "extendedIngredients", []) or []
         analyzed = _get(s, "analyzedInstructions", []) or []
 
-        web_list.append({
-            "id": sid,
-            "title": title,
-            "image": image,
-            "image_url": image,
-            "meta": {"sourceUrl": source_url} if source_url else {},
-            "extendedIngredients": ext_ing,
-            "analyzedInstructions": analyzed,
-            "nutrition": {                
-                "calories": _get(s, "calories"),
-                "protein_g": _get(s, "protein_g"),
-            },
-        })
+        web_list.append(
+            {
+                "id": sid,
+                "title": title,
+                "image": image,
+                "image_url": image,
+                "meta": {"sourceUrl": source_url} if source_url else {},
+                "extendedIngredients": ext_ing,
+                "analyzedInstructions": analyzed,
+                "nutrition": {
+                    "calories": _get(s, "calories"),
+                    "protein_g": _get(s, "protein_g"),
+                },
+            }
+        )
 
     bundle["web"] = web_list
     # If your detail page also consults "combined", keep it identical.
@@ -2481,7 +2899,6 @@ def nutrition_target_upsert(request):
     return render(request, "core/nutrition_target.html", context)
 
 
-
 @login_required
 def meal_plan_view(request):
     qs = request.GET.get("week")
@@ -2500,9 +2917,9 @@ def meal_plan_view(request):
 
     plan, _ = MealPlan.objects.get_or_create(user=request.user, start_date=week_start)
 
-    meals = (Meal.objects
-             .filter(plan=plan, date__range=[week_start, week_start + dt.timedelta(days=6)])
-             .select_related("recipe"))
+    meals = Meal.objects.filter(
+        plan=plan, date__range=[week_start, week_start + dt.timedelta(days=6)]
+    ).select_related("recipe")
 
     def slot_of(m: Meal):
         return getattr(m, "meal_type", None) or getattr(m, "slot", None)
@@ -2514,15 +2931,17 @@ def meal_plan_view(request):
     elif hasattr(Meal, "MEAL_TYPES"):
         slots = list(Meal.MEAL_TYPES)
     else:
-        slots = [("breakfast", "Breakfast"), ("lunch", "Lunch"), ("dinner", "Dinner"), ("snack", "Snack")]
+        slots = [
+            ("breakfast", "Breakfast"),
+            ("lunch", "Lunch"),
+            ("dinner", "Dinner"),
+            ("snack", "Snack"),
+        ]
     slot_values = [v for v, _ in slots]
 
     rows = []
     for day in week_days:
-        cells = [
-            {"meal": by_key.get((day, sv)), "slot": sv}
-            for sv in slot_values
-        ]
+        cells = [{"meal": by_key.get((day, sv)), "slot": sv} for sv in slot_values]
         rows.append({"date": day, "cells": cells})
 
     sel = request.GET.get("recipe")
@@ -2548,6 +2967,7 @@ def meal_plan_view(request):
             "today": today,
         },
     )
+
 
 @login_required
 @require_POST
@@ -2587,9 +3007,13 @@ def meal_add(request):
     )
 
     if created:
-        messages.success(request, f"Added {recipe.title} to {meal_type.title()} on {meal_date}")
+        messages.success(
+            request, f"Added {recipe.title} to {meal_type.title()} on {meal_date}"
+        )
     else:
-        messages.success(request, f"Updated {meal_type.title()} on {meal_date} with {recipe.title}")
+        messages.success(
+            request, f"Updated {meal_type.title()} on {meal_date} with {recipe.title}"
+        )
 
     return redirect(f"{reverse('core:meal_plan')}?week={week_start.isoformat()}")
 
@@ -2602,12 +3026,15 @@ def meal_delete(request, meal_id: int):
     messages.success(request, "Meal removed.")
     return redirect(f"{reverse('core:meal_plan')}?week={week}")
 
+
 def _thumb_for_title_via_spoonacular(title: str) -> str | None:
     """
     Return a smallish image URL for a dish title using Spoonacular's
     /complexSearch endpoint. Returns None on any failure.
     """
-    api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv("SPOONACULAR_API_KEY")
+    api_key = getattr(settings, "SPOONACULAR_API_KEY", None) or os.getenv(
+        "SPOONACULAR_API_KEY"
+    )
     if not api_key or not title:
         return None
 
@@ -2626,13 +3053,22 @@ def _thumb_for_title_via_spoonacular(title: str) -> str | None:
         pass
     return None
 
+
 class ContactForm(forms.Form):
-    name = forms.CharField(max_length=120, widget=forms.TextInput(attrs={"placeholder": "Your name"}))
-    email = forms.EmailField(widget=forms.EmailInput(attrs={"placeholder": "you@example.com"}))
-    message = forms.CharField(widget=forms.Textarea(attrs={"rows": 5, "placeholder": "How can we help?"}))
+    name = forms.CharField(
+        max_length=120, widget=forms.TextInput(attrs={"placeholder": "Your name"})
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={"placeholder": "you@example.com"})
+    )
+    message = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 5, "placeholder": "How can we help?"})
+    )
+
 
 def about(request):
     return render(request, "core/about.html")
+
 
 def contact(request):
     if request.method == "POST":
@@ -2644,8 +3080,18 @@ def contact(request):
                 send_mail(
                     subject=f"[Smart Recipe] Contact from {data['name']}",
                     message=f"From: {data['name']} <{data['email']}>\n\n{data['message']}",
-                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@example.com"),
-                    recipient_list=[getattr(settings, "DEFAULT_TO_EMAIL", getattr(settings, "DEFAULT_FROM_EMAIL", "admin@example.com"))],
+                    from_email=getattr(
+                        settings, "DEFAULT_FROM_EMAIL", "noreply@example.com"
+                    ),
+                    recipient_list=[
+                        getattr(
+                            settings,
+                            "DEFAULT_TO_EMAIL",
+                            getattr(
+                                settings, "DEFAULT_FROM_EMAIL", "admin@example.com"
+                            ),
+                        )
+                    ],
                     fail_silently=True,
                 )
             except Exception:
@@ -2656,15 +3102,18 @@ def contact(request):
         form = ContactForm()
     return render(request, "core/contact.html", {"form": form})
 
+
 @login_required
 def nutrition_target_reset(request):
     NutritionTarget.objects.filter(user=request.user).delete()
     messages.success(request, "Nutrition targets were reset.")
     return redirect("core:nutrition_target")
 
+
 def _week_start(d: _date) -> _date:
     """Monday as the start of the week (same convention your meal plan uses)."""
     return d - timedelta(days=d.weekday())
+
 
 @require_POST
 @login_required
@@ -2738,7 +3187,10 @@ def log_custom_meal(request):
                 break
 
         if conflict:
-            messages.warning(request, f"There is already a {meal_type} saved in your Meal Plan for today.")
+            messages.warning(
+                request,
+                f"There is already a {meal_type} saved in your Meal Plan for today.",
+            )
         else:
             # Create a simple plan item for today.
             # If your Meal model requires a recipe FK, you can adapt this to create a minimal SavedRecipe first;
@@ -2780,6 +3232,7 @@ def log_custom_meal(request):
 
     return redirect("core:nutrition_target")
 
+
 @login_required
 @require_POST
 def log_recipe_meal(request, rid=None, recipe_id=None):
@@ -2810,10 +3263,10 @@ def log_recipe_meal(request, rid=None, recipe_id=None):
         except Exception:
             return Decimal("0")
 
-    calories  = dec("calories")
+    calories = dec("calories")
     protein_g = dec("protein_g")
-    carbs_g   = dec("carbs_g")
-    fat_g     = dec("fat_g")
+    carbs_g = dec("carbs_g")
+    fat_g = dec("fat_g")
 
     # 2) Choose a stable id to remember where this came from
     #    Prefer the hidden "key" we post from the template; fall back to url key.
@@ -2867,15 +3320,16 @@ def delete_meal(request, meal_id: int):
     messages.success(request, "Meal removed.")
     return redirect("core:nutrition_target")
 
+
 @login_required
 @require_POST
 def update_logged_meal(request, pk: int):
     meal = get_object_or_404(LoggedMeal, pk=pk, user=request.user)
-    meal.title     = (request.POST.get("title") or meal.title or "Meal").strip()[:200]
-    meal.calories  = Decimal(request.POST.get("calories")  or meal.calories or 0)
+    meal.title = (request.POST.get("title") or meal.title or "Meal").strip()[:200]
+    meal.calories = Decimal(request.POST.get("calories") or meal.calories or 0)
     meal.protein_g = Decimal(request.POST.get("protein_g") or meal.protein_g or 0)
-    meal.carbs_g   = Decimal(request.POST.get("carbs_g")   or meal.carbs_g or 0)
-    meal.fat_g     = Decimal(request.POST.get("fat_g")     or meal.fat_g or 0)
-    meal.save(update_fields=["title","calories","protein_g","carbs_g","fat_g"])
+    meal.carbs_g = Decimal(request.POST.get("carbs_g") or meal.carbs_g or 0)
+    meal.fat_g = Decimal(request.POST.get("fat_g") or meal.fat_g or 0)
+    meal.save(update_fields=["title", "calories", "protein_g", "carbs_g", "fat_g"])
     messages.success(request, "Meal updated.")
     return redirect("core:nutrition_target")

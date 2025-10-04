@@ -22,6 +22,7 @@ class Ingredient(models.Model):
     We enforce (user, name) uniqueness in a case-insensitive way so
     "Milk" and "milk" don't duplicate for the same user.
     """
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -33,21 +34,22 @@ class Ingredient(models.Model):
         help_text="Display name, e.g. 'Chicken breast'.",
     )
     quantity = models.CharField(
-        max_length=50, blank=True,
+        max_length=50,
+        blank=True,
         help_text="Optional quantity text, e.g. '2', '200g'.",
     )
-    unit = models.CharField(
-        max_length=32, default="pcs", blank=True,
-        null=False
-    )
+    unit = models.CharField(max_length=32, default="pcs", blank=True, null=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """Model metadata (indexes, ordering)."""
+
         ordering = ["name"]
         constraints = [
             # Case-insensitive uniqueness per user
             models.UniqueConstraint(
-                Lower("name"), "user",
+                Lower("name"),
+                "user",
                 name="uniq_ingredient_user_name_ci",
             ),
         ]
@@ -62,14 +64,21 @@ class Ingredient(models.Model):
 
 
 class SavedRecipe(models.Model):
-    """
-    A recipe saved by a user. Source is either:
-      - 'web' (e.g. Spoonacular) with external_id = provider id
-      - 'ai'  (generated)      with external_id auto-generated UUID
+    """A user-persisted recipe (either from web API or AI), denormalized for speed.
 
-    Ingredients and steps are stored as JSON lists for flexibility.
-    Optional nutrition is a JSON object with macros/micros if known.
+    Fields:
+        user (FK): Owner of this saved recipe.
+        source (str): 'web' or 'ai' to identify provenance.
+        external_id (str): API id or AI-generated slug for traceability.
+        ingredients_json (JSON): List of ingredient lines (strings or dicts).
+        steps_json (JSON): List of instructions/steps.
+        image_url (str): Optional hero image; may be AI or API fallback.
+        calories (int|None), carbs_g/protein_g/fat_g (float|None): Optional macros.
+
+    Invariants:
+        - (user, source, external_id) should be unique for de-duplication if enabled.
     """
+
     SOURCE_AI = "ai"
     SOURCE_WEB = "web"
     SOURCE_CHOICES = (
@@ -83,7 +92,8 @@ class SavedRecipe(models.Model):
         related_name="saved_recipes",
     )
     source = models.CharField(
-        max_length=10, choices=SOURCE_CHOICES,
+        max_length=10,
+        choices=SOURCE_CHOICES,
         help_text="Origin of the recipe (AI or Web).",
     )
     # Spoonacular ID for 'web'; generated UUID for 'ai'
@@ -98,10 +108,14 @@ class SavedRecipe(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    calories = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    protein_g = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    carbs_g   = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    fat_g     = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    calories = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True
+    )
+    protein_g = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True
+    )
+    carbs_g = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    fat_g = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -138,6 +152,7 @@ class MealPlan(models.Model):
     A weekly plan. `start_date` should represent the start of the week
     (e.g., Monday). You can enforce Monday in forms/clean() if desired.
     """
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -165,21 +180,26 @@ class Meal(models.Model):
     A single scheduled meal inside a MealPlan.
     We ensure one entry per (plan, date, meal_type) slot.
     """
+
     class Slot(models.TextChoices):
         BREAKFAST = "breakfast", "Breakfast"
-        LUNCH     = "lunch",     "Lunch"
-        DINNER    = "dinner",    "Dinner"
-        SNACK     = "snack",     "Snack"
+        LUNCH = "lunch", "Lunch"
+        DINNER = "dinner", "Dinner"
+        SNACK = "snack", "Snack"
 
     plan = models.ForeignKey(MealPlan, on_delete=models.CASCADE, related_name="meals")
     date = models.DateField()
     meal_type = models.CharField(max_length=16, choices=Slot.choices)
-    recipe = models.ForeignKey("SavedRecipe", null=True, blank=True, on_delete=models.SET_NULL)
+    recipe = models.ForeignKey(
+        "SavedRecipe", null=True, blank=True, on_delete=models.SET_NULL
+    )
     notes = models.CharField(max_length=255, blank=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["plan", "date", "meal_type"], name="unique_meal_slot")
+            models.UniqueConstraint(
+                fields=["plan", "date", "meal_type"], name="unique_meal_slot"
+            )
         ]
         ordering = ["date", "meal_type"]
         indexes = [
@@ -192,7 +212,10 @@ class Meal(models.Model):
 
 # --- Nutrition Targets ---
 
+
 class NutritionTarget(models.Model):
+    """Per-user daily nutrition goals for comparison with logged totals."""
+
     DIET_CHOICES = [
         ("high_protein", "High Protein"),
         ("balanced", "Balanced"),
@@ -201,25 +224,32 @@ class NutritionTarget(models.Model):
         ("vegan", "Vegan"),
     ]
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nutrition_target")
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="nutrition_target",
+    )
     calories = models.PositiveIntegerField(default=2000)
 
     # macros (optional grams)
     protein_g = models.PositiveIntegerField(null=True, blank=True)
-    carbs_g   = models.PositiveIntegerField(null=True, blank=True)
-    fat_g     = models.PositiveIntegerField(null=True, blank=True)
+    carbs_g = models.PositiveIntegerField(null=True, blank=True)
+    fat_g = models.PositiveIntegerField(null=True, blank=True)
 
     # optional extras
     fiber_g = models.PositiveIntegerField(null=True, blank=True)
     sugar_g = models.PositiveIntegerField(null=True, blank=True)
 
-    diet_type = models.CharField(max_length=32, choices=DIET_CHOICES, null=True, blank=True)
+    diet_type = models.CharField(
+        max_length=32, choices=DIET_CHOICES, null=True, blank=True
+    )
 
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"NutritionTarget<{self.user}>"
+        """Return 'name (amount unit)' for admin readability."""
 
+        return f"NutritionTarget<{self.user}>"
 
 
 class PantryImageUpload(models.Model):
@@ -230,14 +260,17 @@ class PantryImageUpload(models.Model):
         "candidates": [{"name": "milk", "confidence": 0.87}, ...]
       }
     """
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
-        DONE    = "done",    "Done"
-        FAILED  = "failed",  "Failed"
+        DONE = "done", "Done"
+        FAILED = "failed", "Failed"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     image = models.ImageField(upload_to="media/pantry_uploads/")
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.PENDING
+    )
     results = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -251,30 +284,39 @@ class PantryImageUpload(models.Model):
     def __str__(self) -> str:
         return f"Pantry upload {self.id} by {self.user} ({self.status})"
 
+
 class LoggedMeal(models.Model):
+    """A single meal entry recorded by the user at a given datetime."""
+
     MEAL_TYPES = [
         ("breakfast", "Breakfast"),
         ("lunch", "Lunch"),
         ("dinner", "Dinner"),
         ("snack", "Snack"),
     ]
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="logged_meals")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="logged_meals"
+    )
     date = models.DateField(auto_now_add=True)
     meal_type = models.CharField(max_length=16, choices=MEAL_TYPES, default="lunch")
 
-    title = models.CharField(max_length=200, blank=True)          # e.g., "Chicken bowl"
-    source_recipe_id = models.CharField(max_length=64, blank=True) # if came from a recipe
+    title = models.CharField(max_length=200, blank=True)  # e.g., "Chicken bowl"
+    source_recipe_id = models.CharField(
+        max_length=64, blank=True
+    )  # if came from a recipe
 
     calories = models.PositiveIntegerField(default=0)
     protein_g = models.PositiveIntegerField(default=0)
-    carbs_g   = models.PositiveIntegerField(default=0)
-    fat_g     = models.PositiveIntegerField(default=0)
-    fiber_g   = models.PositiveIntegerField(default=0)
-    sugar_g   = models.PositiveIntegerField(default=0)
+    carbs_g = models.PositiveIntegerField(default=0)
+    fat_g = models.PositiveIntegerField(default=0)
+    fiber_g = models.PositiveIntegerField(default=0)
+    sugar_g = models.PositiveIntegerField(default=0)
 
     quantity = models.FloatField(default=1.0)  # multiplier if partial serving
 
     class Meta:
+        """Indexes for fast date-range queries and uniqueness rules if any."""
+
         indexes = [models.Index(fields=["user", "date"])]
         ordering = ["-date", "-id"]
 
@@ -282,6 +324,8 @@ class LoggedMeal(models.Model):
         return f"{self.user} {self.date}: {self.title or 'Meal'} ({self.calories} kcal)"
 
     class Favorite(models.Model):
+        """Bookmark connecting a user to a recipe from web or AI sources."""
+
         user = models.ForeignKey(
             settings.AUTH_USER_MODEL,
             on_delete=models.CASCADE,
@@ -298,6 +342,8 @@ class LoggedMeal(models.Model):
         added_at = models.DateTimeField(auto_now_add=True)
 
         class Meta:
+            """Ensure user cannot favorite the same external recipe twice."""
+
             unique_together = ("user", "recipe_uid")
             indexes = [
                 models.Index(fields=["user", "recipe_uid"]),

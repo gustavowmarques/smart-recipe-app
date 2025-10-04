@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0007_alter_savedrecipe_image_url'),
+        ("core", "0007_alter_savedrecipe_image_url"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='pantryimageupload',
-            name='image',
-            field=models.ImageField(upload_to='media/pantry_uploads/'),
+            model_name="pantryimageupload",
+            name="image",
+            field=models.ImageField(upload_to="media/pantry_uploads/"),
         ),
     ]

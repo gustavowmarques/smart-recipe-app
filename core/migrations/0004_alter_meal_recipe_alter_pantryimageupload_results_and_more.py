@@ -8,24 +8,31 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0003_meal_mealplan_nutritiontarget_pantryimageupload_and_more'),
+        ("core", "0003_meal_mealplan_nutritiontarget_pantryimageupload_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='meal',
-            name='recipe',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='core.savedrecipe'),
+            model_name="meal",
+            name="recipe",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="core.savedrecipe",
+            ),
         ),
         migrations.AlterField(
-            model_name='pantryimageupload',
-            name='results',
+            model_name="pantryimageupload",
+            name="results",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='pantryimageupload',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL),
+            model_name="pantryimageupload",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL
+            ),
         ),
     ]

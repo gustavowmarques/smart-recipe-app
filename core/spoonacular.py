@@ -27,7 +27,9 @@ def _pick_macro(nutrients, name_prefix: str):
     return None
 
 
-def spoonacular_macros_for(external_id: str | int | None = None, title: str | None = None) -> dict:
+def spoonacular_macros_for(
+    external_id: str | int | None = None, title: str | None = None
+) -> dict:
     """
     Return simple per-serving macros for a recipe:
     { calories, protein_g, carbs_g, fat_g }

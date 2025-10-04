@@ -1,5 +1,7 @@
 from django import template
+
 register = template.Library()
+
 
 @register.filter(name="get_item")
 def get_item(mapping, key):
@@ -22,6 +24,7 @@ def get_item(mapping, key):
         return mapping[key]
     except Exception:
         return None
+
 
 @register.filter
 def split(s, sep):

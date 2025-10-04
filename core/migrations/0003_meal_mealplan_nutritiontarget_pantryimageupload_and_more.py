@@ -9,171 +9,302 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0002_savedrecipe'),
+        ("core", "0002_savedrecipe"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Meal',
+            name="Meal",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('date', models.DateField()),
-                ('meal_type', models.CharField(choices=[('breakfast', 'Breakfast'), ('lunch', 'Lunch'), ('dinner', 'Dinner'), ('snack', 'Snack')], max_length=16)),
-                ('notes', models.CharField(blank=True, max_length=255)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("date", models.DateField()),
+                (
+                    "meal_type",
+                    models.CharField(
+                        choices=[
+                            ("breakfast", "Breakfast"),
+                            ("lunch", "Lunch"),
+                            ("dinner", "Dinner"),
+                            ("snack", "Snack"),
+                        ],
+                        max_length=16,
+                    ),
+                ),
+                ("notes", models.CharField(blank=True, max_length=255)),
             ],
             options={
-                'ordering': ['date', 'meal_type'],
+                "ordering": ["date", "meal_type"],
             },
         ),
         migrations.CreateModel(
-            name='MealPlan',
+            name="MealPlan",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('start_date', models.DateField(help_text='Start date for the week (e.g., Monday).')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "start_date",
+                    models.DateField(
+                        help_text="Start date for the week (e.g., Monday)."
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-start_date'],
+                "ordering": ["-start_date"],
             },
         ),
         migrations.CreateModel(
-            name='NutritionTarget',
+            name="NutritionTarget",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('calories', models.IntegerField(default=2000)),
-                ('protein_g', models.IntegerField(default=100)),
-                ('carbs_g', models.IntegerField(default=250)),
-                ('fat_g', models.IntegerField(default=70)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("calories", models.IntegerField(default=2000)),
+                ("protein_g", models.IntegerField(default=100)),
+                ("carbs_g", models.IntegerField(default=250)),
+                ("fat_g", models.IntegerField(default=70)),
             ],
         ),
         migrations.CreateModel(
-            name='PantryImageUpload',
+            name="PantryImageUpload",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('image', models.ImageField(upload_to='pantry_uploads/')),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('done', 'Done'), ('failed', 'Failed')], default='pending', max_length=12)),
-                ('results', models.JSONField(blank=True, default=dict, help_text='Structured OCR/vision output for review.')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("image", models.ImageField(upload_to="pantry_uploads/")),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("pending", "Pending"),
+                            ("done", "Done"),
+                            ("failed", "Failed"),
+                        ],
+                        default="pending",
+                        max_length=12,
+                    ),
+                ),
+                (
+                    "results",
+                    models.JSONField(
+                        blank=True,
+                        default=dict,
+                        help_text="Structured OCR/vision output for review.",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'ordering': ['-created_at'],
+                "ordering": ["-created_at"],
             },
         ),
         migrations.AlterUniqueTogether(
-            name='ingredient',
+            name="ingredient",
             unique_together=set(),
         ),
         migrations.AlterUniqueTogether(
-            name='savedrecipe',
+            name="savedrecipe",
             unique_together=set(),
         ),
         migrations.AddField(
-            model_name='savedrecipe',
-            name='nutrition',
+            model_name="savedrecipe",
+            name="nutrition",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='ingredient',
-            name='name',
-            field=models.CharField(help_text="Display name, e.g. 'Chicken breast'.", max_length=100),
+            model_name="ingredient",
+            name="name",
+            field=models.CharField(
+                help_text="Display name, e.g. 'Chicken breast'.", max_length=100
+            ),
         ),
         migrations.AlterField(
-            model_name='ingredient',
-            name='quantity',
-            field=models.CharField(blank=True, help_text="Optional quantity text, e.g. '2', '200g'.", max_length=50),
+            model_name="ingredient",
+            name="quantity",
+            field=models.CharField(
+                blank=True,
+                help_text="Optional quantity text, e.g. '2', '200g'.",
+                max_length=50,
+            ),
         ),
         migrations.AlterField(
-            model_name='ingredient',
-            name='unit',
-            field=models.CharField(blank=True, help_text="Optional unit text, e.g. 'g', 'pcs'.", max_length=20),
+            model_name="ingredient",
+            name="unit",
+            field=models.CharField(
+                blank=True,
+                help_text="Optional unit text, e.g. 'g', 'pcs'.",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='ingredient',
-            name='user',
-            field=models.ForeignKey(help_text='Owner of this ingredient.', on_delete=django.db.models.deletion.CASCADE, related_name='ingredients', to=settings.AUTH_USER_MODEL),
+            model_name="ingredient",
+            name="user",
+            field=models.ForeignKey(
+                help_text="Owner of this ingredient.",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="ingredients",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AlterField(
-            model_name='savedrecipe',
-            name='ingredients_json',
+            model_name="savedrecipe",
+            name="ingredients_json",
             field=models.JSONField(blank=True, default=list),
         ),
         migrations.AlterField(
-            model_name='savedrecipe',
-            name='source',
-            field=models.CharField(choices=[('ai', 'AI'), ('web', 'Web')], help_text='Origin of the recipe (AI or Web).', max_length=10),
+            model_name="savedrecipe",
+            name="source",
+            field=models.CharField(
+                choices=[("ai", "AI"), ("web", "Web")],
+                help_text="Origin of the recipe (AI or Web).",
+                max_length=10,
+            ),
         ),
         migrations.AlterField(
-            model_name='savedrecipe',
-            name='steps_json',
+            model_name="savedrecipe",
+            name="steps_json",
             field=models.JSONField(blank=True, default=list),
         ),
         migrations.AddIndex(
-            model_name='ingredient',
-            index=models.Index(fields=['user', 'name'], name='core_ingred_user_id_b96ee8_idx'),
+            model_name="ingredient",
+            index=models.Index(
+                fields=["user", "name"], name="core_ingred_user_id_b96ee8_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='savedrecipe',
-            index=models.Index(fields=['user', 'source'], name='core_savedr_user_id_73cdf5_idx'),
+            model_name="savedrecipe",
+            index=models.Index(
+                fields=["user", "source"], name="core_savedr_user_id_73cdf5_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='savedrecipe',
-            index=models.Index(fields=['source', 'external_id'], name='core_savedr_source_a0b5c5_idx'),
+            model_name="savedrecipe",
+            index=models.Index(
+                fields=["source", "external_id"], name="core_savedr_source_a0b5c5_idx"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='ingredient',
-            constraint=models.UniqueConstraint(django.db.models.functions.text.Lower('name'), models.F('user'), name='uniq_ingredient_user_name_ci'),
+            model_name="ingredient",
+            constraint=models.UniqueConstraint(
+                django.db.models.functions.text.Lower("name"),
+                models.F("user"),
+                name="uniq_ingredient_user_name_ci",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='savedrecipe',
-            constraint=models.UniqueConstraint(fields=('user', 'source', 'external_id'), name='uniq_saved_recipe_user_source_extid'),
+            model_name="savedrecipe",
+            constraint=models.UniqueConstraint(
+                fields=("user", "source", "external_id"),
+                name="uniq_saved_recipe_user_source_extid",
+            ),
         ),
         migrations.AddField(
-            model_name='meal',
-            name='recipe',
-            field=models.ForeignKey(blank=True, help_text='Optional link to a saved recipe.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='meals', to='core.savedrecipe'),
+            model_name="meal",
+            name="recipe",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="Optional link to a saved recipe.",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="meals",
+                to="core.savedrecipe",
+            ),
         ),
         migrations.AddField(
-            model_name='mealplan',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meal_plans', to=settings.AUTH_USER_MODEL),
+            model_name="mealplan",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="meal_plans",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='meal',
-            name='plan',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meals', to='core.mealplan'),
+            model_name="meal",
+            name="plan",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="meals",
+                to="core.mealplan",
+            ),
         ),
         migrations.AddField(
-            model_name='nutritiontarget',
-            name='user',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='nutrition_target', to=settings.AUTH_USER_MODEL),
+            model_name="nutritiontarget",
+            name="user",
+            field=models.OneToOneField(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="nutrition_target",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='pantryimageupload',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pantry_uploads', to=settings.AUTH_USER_MODEL),
+            model_name="pantryimageupload",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="pantry_uploads",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddIndex(
-            model_name='mealplan',
-            index=models.Index(fields=['user', 'start_date'], name='core_mealpl_user_id_4215be_idx'),
+            model_name="mealplan",
+            index=models.Index(
+                fields=["user", "start_date"], name="core_mealpl_user_id_4215be_idx"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='mealplan',
-            constraint=models.UniqueConstraint(fields=('user', 'start_date'), name='uniq_mealplan_user_start'),
+            model_name="mealplan",
+            constraint=models.UniqueConstraint(
+                fields=("user", "start_date"), name="uniq_mealplan_user_start"
+            ),
         ),
         migrations.AddIndex(
-            model_name='meal',
-            index=models.Index(fields=['plan', 'date'], name='core_meal_plan_id_e616a5_idx'),
+            model_name="meal",
+            index=models.Index(
+                fields=["plan", "date"], name="core_meal_plan_id_e616a5_idx"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='meal',
-            constraint=models.UniqueConstraint(fields=('plan', 'date', 'meal_type'), name='unique_meal_slot'),
+            model_name="meal",
+            constraint=models.UniqueConstraint(
+                fields=("plan", "date", "meal_type"), name="unique_meal_slot"
+            ),
         ),
         migrations.AddIndex(
-            model_name='pantryimageupload',
-            index=models.Index(fields=['user', 'created_at'], name='core_pantry_user_id_c2923a_idx'),
+            model_name="pantryimageupload",
+            index=models.Index(
+                fields=["user", "created_at"], name="core_pantry_user_id_c2923a_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='pantryimageupload',
-            index=models.Index(fields=['status'], name='core_pantry_status_da1dc2_idx'),
+            model_name="pantryimageupload",
+            index=models.Index(fields=["status"], name="core_pantry_status_da1dc2_idx"),
         ),
     ]

@@ -1,14 +1,14 @@
 # Smart Recipe App
 ### Full Stack Web Application (Django + AI Integration)
 
-**Live Deployment:**  
+**Live Deployment:**
 [https://smart-recipe-app-b3x7.onrender.com](https://smart-recipe-app-b3x7.onrender.com)
 
-**GitHub Repository:**  
+**GitHub Repository:**
 [https://github.com/gustavowmarques/smart-recipe-app.git](https://github.com/gustavowmarques/smart-recipe-app.git)
 
-**Django Superuser (for demo/review):**  
-**Username:** `gdasilva`  
+**Django Superuser (for demo/review):**
+**Username:** `gdasilva`
 **Password:** `LabPass1!`
 
 
@@ -23,15 +23,15 @@ The project demonstrates end-to-end integration of frontend and backend technolo
 ------------------------
 
 *   Build a **feature-rich web application** integrating AI and external API data.
-    
+
 *   Implement secure user authentication (registration, login, logout).
-    
+
 *   Provide a responsive, intuitive interface for pantry-based recipe searches.
-    
+
 *   Showcase clear communication, documentation, and version control best practices.
-    
+
 *   Deploy a fully functional hosted version with live database connectivity.
-    
+
 
 ## 3 Key Features
 ----------------
@@ -39,48 +39,48 @@ The project demonstrates end-to-end integration of frontend and backend technolo
 ### Authentication & Security
 
 *   Django built-in authentication for register/login/logout.
-    
+
 *   Passwords stored with PBKDF2 hashing.
-    
+
 *   CSRF and session-based protection enabled site-wide.
-    
+
 
 ### Recipe Generation and Discovery
 
 *   **AI Recipes:** Custom recipes generated through OpenAI API.
-    
+
 *   **Spoonacular API Integration:** Real-world recipes with images and nutrition facts.
-    
+
 *   **Ingredient Search:** Suggests meals based on available pantry items.
-    
+
 *   **Detailed Recipe Views:** Steps, ingredients, and cooking times.
-    
+
 *   **Save Favorites:** Personalised recipe library on the dashboard.
-    
+
 
 ### Dashboard and Meal Planning
 
 *   User-specific dashboard displaying saved recipes and meal logs.
-    
+
 *   Future expansion for calorie tracking and nutritional goals.
-    
+
 
 ### Responsive Design
 
 *   Developed with **Bootstrap 5**, ensuring usability across desktop, tablet, and mobile.
-    
+
 
 ### Automated Testing
 
 *   Unit and integration tests using Django’s unittest.
-    
+
 *   Covers models, views, templates, and API mocks.
-    
+
 
 ### Deployment
 
 *   Hosted on **Render** with persistent PostgreSQL database and production static file handling.
-    
+
 
 ## 4. Technologies Used
 
@@ -103,26 +103,26 @@ The project demonstrates end-to-end integration of frontend and backend technolo
 Follows the **Model-View-Template (MVT)** pattern:
 
 *   **Models:** Represent recipes, favorites, pantry images, and logged meals.
-    
+
 *   **Views:** Manage routing, API calls, AI generation, and user interaction logic.
-    
+
 *   **Templates:** Render Bootstrap-based responsive UI components.
-    
+
 
 **API Flow:**
 
 1.  User enters ingredients or prompts.
-    
+
 2.  Backend calls either:
-    
+
     *   **OpenAI API** for creative recipe generation, or
-        
+
     *   **Spoonacular API** for verified recipes and images.
-        
+
 3.  Results parsed, stored, and rendered dynamically.
-    
+
 4.  Users can view details or save favorites.
-    
+
 
 ## 6. Installation and Setup
 --------------------------
@@ -130,9 +130,9 @@ Follows the **Model-View-Template (MVT)** pattern:
 ### Prerequisites
 
 *   Python 3.10+
-    
+
 *   pip and virtualenv
-    
+
 
 ### Steps
 
@@ -163,13 +163,13 @@ python manage.py test core.tests -v 2
 Tests cover:
 
 *   **Models** – creation and relationships.
-    
+
 *   **Views** – authentication, dashboard, and recipe search routes.
-    
+
 *   **Templates** – rendering and content assertions.
-    
+
 *   **Mock APIs** – simulated OpenAI / Spoonacular responses.
-    
+
 
 All six tests pass after minor namespace and template corrections.
 
@@ -177,35 +177,35 @@ All six tests pass after minor namespace and template corrections.
 ----------------------
 
 *   **Platform:** Render.com
-    
+
 *   **Branch:** main (auto-deploy)
-    
+
 *   **Environment Variables:**
-    
+
     *   OPENAI\_API\_KEY
-        
+
     *   SPOONACULAR\_API\_KEY
-        
+
     *   DJANGO\_SECRET\_KEY
-        
+
 *   **Static Files:** WhiteNoise
-    
+
 *   **Database:** PostgreSQL
-    
+
 *   **Live URL:** [https://smart-recipe-app-b3x7.onrender.com](https://smart-recipe-app-b3x7.onrender.com)
-    
+
 
 ## 9. Version Control and Collaboration
 -------------------------------------
 
 *   Regular commits with descriptive messages.
-    
+
 *   Feature branches used for isolated development.
-    
+
 *   .gitignore prevents committing sensitive data or virtual environments.
-    
+
 *   Documentation, tests, and code consistently aligned through Git history.
-    
+
 
 ## 10. Challenges and Solutions
 -----------------------------
@@ -225,27 +225,27 @@ All six tests pass after minor namespace and template corrections.
 ------------------------
 
 *   Add nutrition dashboard and progress tracking.
-    
+
 *   Implement email verification and password reset.
-    
+
 *   Support user-uploaded recipe images.
-    
+
 *   Expand filters by cuisine, calories, and diet type.
-    
+
 *   Extend testing coverage to integration and UI automation.
-    
+
 
 ## 12. Communication and Collaboration Notes
 ------------------------------------------
 
 *   Weekly progress aligned with course milestones.
-    
+
 *   Code commented with meaningful docstrings.
-    
+
 *   This README provides clear setup, deployment, and testing guidance.
-    
+
 *   Professional documentation enables reviewers or peers to replicate the environment easily.
-    
+
 
 ## 13. Project Timeline (Weeks 2 – 5)
 -----------------------------------
@@ -268,19 +268,19 @@ This structured timeline evidences consistent progress and communication through
 All supporting materials are located in the /doc folder within the submission:
 
 *   **Planning Analysis Document:** Defines system goals, feature priorities, and technology stack.
-    
+
 *   **Sitemap:** Visual overview of page navigation and user flow.
-    
+
 *   **Wireframes:** Early UI mockups for Home, Dashboard, and Recipe Detail.
-    
+
 *   **API Design Notes:** Endpoint structures and request/response samples for Spoonacular and OpenAI.
-    
+
 *   **Testing Plan:** Manual and automated test procedures.
-    
+
 *   **Presentation Slides:** Used in weekly updates and final demonstration.
-    
+
 *   **Dependency List:** Ensures reproducible environment and deployment consistency.
-    
+
 
 Together these artefacts document the full SDLC — concept → design → implementation → testing → deployment — supporting distinction-level communication and planning evidence.
 
@@ -290,15 +290,15 @@ Together these artefacts document the full SDLC — concept → design → imple
 The **Smart Recipe App** is a comprehensive demonstration of full-stack development competence.It showcases mastery in:
 
 *   Front-end and back-end integration
-    
+
 *   Secure application design
-    
+
 *   API consumption and AI integration
-    
+
 *   Automated testing and deployment
-    
+
 *   Clear documentation and communication
-    
+
 
 This project fully satisfies the assessment rubric for **Distinction**, evidencing technical depth, secure implementation, responsive design, hosted functionality, and professional-grade documentation.
 

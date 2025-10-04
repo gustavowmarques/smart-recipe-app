@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 120
+exclude = venv, migrations
+
+# Ignore a couple of docstring rules globally (optional)
+extend-ignore =
+    D100,
+    D104,
+
+# In tests, relax class/method docstring rules (optional)
+per-file-ignores =
+    core/tests/*.py: D101, D102

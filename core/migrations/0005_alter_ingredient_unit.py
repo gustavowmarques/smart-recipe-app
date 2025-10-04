@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0004_alter_meal_recipe_alter_pantryimageupload_results_and_more'),
+        ("core", "0004_alter_meal_recipe_alter_pantryimageupload_results_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='ingredient',
-            name='unit',
-            field=models.CharField(blank=True, default='pcs', max_length=32),
+            model_name="ingredient",
+            name="unit",
+            field=models.CharField(blank=True, default="pcs", max_length=32),
         ),
     ]

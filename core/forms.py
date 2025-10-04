@@ -7,18 +7,15 @@ class IngredientForm(forms.ModelForm):
         model = Ingredient
         fields = ["name", "quantity", "unit"]
         widgets = {
-            "name": forms.TextInput(attrs={
-                "placeholder": "e.g. bell pepper",
-                "class": "form-control"
-            }),
-            "quantity": forms.TextInput(attrs={
-                "placeholder": "e.g. 2 or 200",
-                "class": "form-control"
-            }),
-            "unit": forms.TextInput(attrs={
-                "placeholder": "e.g. g, pcs",
-                "class": "form-control"
-            }),
+            "name": forms.TextInput(
+                attrs={"placeholder": "e.g. bell pepper", "class": "form-control"}
+            ),
+            "quantity": forms.TextInput(
+                attrs={"placeholder": "e.g. 2 or 200", "class": "form-control"}
+            ),
+            "unit": forms.TextInput(
+                attrs={"placeholder": "e.g. g, pcs", "class": "form-control"}
+            ),
         }
 
     def clean_name(self):
@@ -36,34 +33,46 @@ class SavedRecipeForm(forms.ModelForm):
     NOTE: `ingredients_json` and `steps_json` are JSON fields.
     For now, keep input as valid JSON arrays (e.g. ["2 eggs", "200g flour"]).
     """
+
     ingredients_json = forms.JSONField(
         required=False,
         help_text='Enter a JSON array, e.g. ["2 eggs", "200g flour"]',
-        widget=forms.Textarea(attrs={
-            "rows": 4,
-            "placeholder": '["2 eggs", "200g flour"]'
-        }),
+        widget=forms.Textarea(
+            attrs={"rows": 4, "placeholder": '["2 eggs", "200g flour"]'}
+        ),
     )
     steps_json = forms.JSONField(
         required=False,
         help_text='Enter a JSON array, e.g. ["Beat eggs", "Cook for 5 min"]',
-        widget=forms.Textarea(attrs={
-            "rows": 4,
-            "placeholder": '["Beat eggs", "Cook for 5 min"]'
-        }),
+        widget=forms.Textarea(
+            attrs={"rows": 4, "placeholder": '["Beat eggs", "Cook for 5 min"]'}
+        ),
     )
 
     class Meta:
         model = SavedRecipe
-        fields = ["title", "image_url", "ingredients_json", "steps_json", "source", "external_id"]
+        fields = [
+            "title",
+            "image_url",
+            "ingredients_json",
+            "steps_json",
+            "source",
+            "external_id",
+        ]
         widgets = {
-            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Recipe title"}),
-            "image_url": forms.URLInput(attrs={"class": "form-control", "placeholder": "https://..."}),
+            "title": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Recipe title"}
+            ),
+            "image_url": forms.URLInput(
+                attrs={"class": "form-control", "placeholder": "https://..."}
+            ),
             "source": forms.Select(attrs={"class": "form-select"}),
-            "external_id": forms.TextInput(attrs={
-                "class": "form-control",
-                "placeholder": "(optional) keep blank for manual recipes"
-            }),
+            "external_id": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "(optional) keep blank for manual recipes",
+                }
+            ),
         }
 
     def clean_title(self):
@@ -72,32 +81,48 @@ class SavedRecipeForm(forms.ModelForm):
             raise forms.ValidationError("Please enter a title.")
         return title
 
+
 class NutritionTargetForm(forms.ModelForm):
     class Meta:
         model = NutritionTarget
         fields = [
             "calories",
-            "protein_g", "carbs_g", "fat_g",
-            "fiber_g", "sugar_g",
+            "protein_g",
+            "carbs_g",
+            "fat_g",
+            "fiber_g",
+            "sugar_g",
             "diet_type",
         ]
         widgets = {
-            "calories": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "2000"}),
-            "protein_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "140"}),
-            "carbs_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "200"}),
-            "fat_g": forms.NumberInput(attrs={"min": 0, "class": "form-control", "placeholder": "70"}),
+            "calories": forms.NumberInput(
+                attrs={"min": 0, "class": "form-control", "placeholder": "2000"}
+            ),
+            "protein_g": forms.NumberInput(
+                attrs={"min": 0, "class": "form-control", "placeholder": "140"}
+            ),
+            "carbs_g": forms.NumberInput(
+                attrs={"min": 0, "class": "form-control", "placeholder": "200"}
+            ),
+            "fat_g": forms.NumberInput(
+                attrs={"min": 0, "class": "form-control", "placeholder": "70"}
+            ),
             "fiber_g": forms.NumberInput(attrs={"min": 0, "class": "form-control"}),
             "sugar_g": forms.NumberInput(attrs={"min": 0, "class": "form-control"}),
             "diet_type": forms.Select(attrs={"class": "form-select"}),
         }
 
+
 class PantryImageUploadForm(forms.ModelForm):
+    """Upload form for pantry images used by the ingredient extractor."""
+
     class Meta:
+        """Model and field configuration for PantryImageUploadForm."""
+
         model = PantryImageUpload
         fields = ["image"]  # keep it minimal for now
-        widgets = {
-            "image": forms.ClearableFileInput(attrs={"class": "form-control"})
-        }
+        widgets = {"image": forms.ClearableFileInput(attrs={"class": "form-control"})}
+
 
 # A tiny helper for adding meals to a plan
 def _slot_choices():
@@ -121,9 +146,13 @@ def _slot_choices():
         ("snack", "Snack"),
     ]
 
+
 # ---- meal add form ---------------------------------------------------------
 
+
 class MealAddForm(forms.Form):
+    """Form to create or update a meal log entry."""
+
     date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     slot = forms.ChoiceField(choices=[])  # filled in __init__
 

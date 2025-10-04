@@ -29,6 +29,14 @@ class DashboardAuthTests(TestCase):
 
 
 class SpoonacularWebRecipesTests(TestCase):
+    """Integration-ish tests for the 'web_recipes' flow with mocked HTTP.
+
+    Verifies:
+        - 200 response on happy path
+        - HTML-escaped title is rendered
+        - detail link uses '/web/recipes/<id>/' shape expected by templates
+    """
+
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", password="pass123")
         self.client.login(username="testuser", password="pass123")
@@ -40,6 +48,7 @@ class SpoonacularWebRecipesTests(TestCase):
     @patch("core.views.requests.get")
     def test_web_recipes_success(self, mock_get):
         """Happy path: mocked Spoonacular responses, expect 200 and recipe on page."""
+
         def side_effect(url, params=None, timeout=None):
             if "findByIngredients" in url:
                 return _MockResponse(
@@ -49,7 +58,10 @@ class SpoonacularWebRecipesTests(TestCase):
                             "title": "Chicken & Peppers",
                             "image": "https://img.test/chicken.jpg",
                             "usedIngredientCount": 2,
-                            "usedIngredients": [{"name": "bell pepper"}, {"name": "chicken breast"}],
+                            "usedIngredients": [
+                                {"name": "bell pepper"},
+                                {"name": "chicken breast"},
+                            ],
                             "missedIngredients": [{"name": "garlic"}],
                         }
                     ],
@@ -69,7 +81,14 @@ class SpoonacularWebRecipesTests(TestCase):
                                 {"original": "2 bell peppers"},
                                 {"original": "300g chicken breast"},
                             ],
-                            "analyzedInstructions": [{"steps": [{"step": "Cook chicken."}, {"step": "Add peppers."}]}],
+                            "analyzedInstructions": [
+                                {
+                                    "steps": [
+                                        {"step": "Cook chicken."},
+                                        {"step": "Add peppers."},
+                                    ]
+                                }
+                            ],
                         }
                     ],
                     200,
@@ -95,7 +114,9 @@ class AIRecipesTests(TestCase):
         Ingredient.objects.create(user=self.user, name="chicken breast")
         Ingredient.objects.create(user=self.user, name="onion")
 
-    @patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test", "SPOONACULAR_API_KEY": "spoon-test"})
+    @patch.dict(
+        "os.environ", {"OPENAI_API_KEY": "sk-test", "SPOONACULAR_API_KEY": "spoon-test"}
+    )
     @patch("core.views.requests.get")
     @patch("core.views.requests.post")
     def test_ai_recipes_happy_path(self, mock_post, mock_get):
@@ -109,7 +130,11 @@ class AIRecipesTests(TestCase):
                                 "recipes": [
                                     {
                                         "title": "Pepper Chicken Bake",
-                                        "ingredients": ["bell pepper", "chicken breast", "onion"],
+                                        "ingredients": [
+                                            "bell pepper",
+                                            "chicken breast",
+                                            "onion",
+                                        ],
                                         "steps": ["Prep", "Bake"],
                                         "tags": ["baked"],
                                         "cook_time_minutes": 40,
@@ -123,7 +148,9 @@ class AIRecipesTests(TestCase):
             ]
         }
         mock_post.return_value = _MockResponse(ai_payload, 200)
-        mock_get.return_value = _MockResponse({"results": [{"image": "https://img.test/fallback.jpg"}]}, 200)
+        mock_get.return_value = _MockResponse(
+            {"results": [{"image": "https://img.test/fallback.jpg"}]}, 200
+        )
 
         url = reverse("core:ai_recipes")
         r = self.client.post(url, data={"kind": "food"})

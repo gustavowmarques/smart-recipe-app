@@ -8,25 +8,45 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0010_loggedmeal'),
+        ("core", "0010_loggedmeal"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Favorite',
+            name="Favorite",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('recipe_uid', models.CharField(max_length=128)),
-                ('title', models.CharField(blank=True, max_length=255)),
-                ('image_url', models.URLField(blank=True)),
-                ('source_url', models.URLField(blank=True)),
-                ('added_at', models.DateTimeField(auto_now_add=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='favorites', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("recipe_uid", models.CharField(max_length=128)),
+                ("title", models.CharField(blank=True, max_length=255)),
+                ("image_url", models.URLField(blank=True)),
+                ("source_url", models.URLField(blank=True)),
+                ("added_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="favorites",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'indexes': [models.Index(fields=['user', 'recipe_uid'], name='core_favori_user_id_43dbc2_idx')],
-                'unique_together': {('user', 'recipe_uid')},
+                "indexes": [
+                    models.Index(
+                        fields=["user", "recipe_uid"],
+                        name="core_favori_user_id_43dbc2_idx",
+                    )
+                ],
+                "unique_together": {("user", "recipe_uid")},
             },
         ),
     ]

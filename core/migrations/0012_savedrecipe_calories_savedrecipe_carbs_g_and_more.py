@@ -6,28 +6,36 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0011_favorite'),
+        ("core", "0011_favorite"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='savedrecipe',
-            name='calories',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=8, null=True),
+            model_name="savedrecipe",
+            name="calories",
+            field=models.DecimalField(
+                blank=True, decimal_places=2, max_digits=8, null=True
+            ),
         ),
         migrations.AddField(
-            model_name='savedrecipe',
-            name='carbs_g',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=8, null=True),
+            model_name="savedrecipe",
+            name="carbs_g",
+            field=models.DecimalField(
+                blank=True, decimal_places=2, max_digits=8, null=True
+            ),
         ),
         migrations.AddField(
-            model_name='savedrecipe',
-            name='fat_g',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=8, null=True),
+            model_name="savedrecipe",
+            name="fat_g",
+            field=models.DecimalField(
+                blank=True, decimal_places=2, max_digits=8, null=True
+            ),
         ),
         migrations.AddField(
-            model_name='savedrecipe',
-            name='protein_g',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=8, null=True),
+            model_name="savedrecipe",
+            name="protein_g",
+            field=models.DecimalField(
+                blank=True, decimal_places=2, max_digits=8, null=True
+            ),
         ),
     ]

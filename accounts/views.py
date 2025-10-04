@@ -3,7 +3,13 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import login
 from django.contrib import messages
 
+
 def register(request):
+    """Render the user's registration page.
+
+    Returns:
+        HttpResponse: "Welcome! Your account was created."
+    """
     if request.method == "POST":
         form = UserCreationForm(request.POST)
         if form.is_valid():

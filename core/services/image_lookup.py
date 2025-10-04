@@ -1,3 +1,5 @@
+"""Image lookup helpers for recipes when an upstream source lacks images."""
+
 import logging
 import os
 import re
@@ -7,13 +9,13 @@ from typing import Optional
 import requests
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.utils.text import slugify
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
 # -------- Spoonacular: title -> representative image URL --------
 SPOON_KEY = os.getenv("SPOONACULAR_API_KEY")
+
 
 def spoonacular_image_for(title: str) -> Optional[str]:
     """
@@ -59,11 +61,13 @@ CONTENT_TYPE_MAP = {
     "image/webp": ".webp",
 }
 
+
 def _safe_slug(s: str) -> str:
     s = (s or "").strip().lower()
     s = re.sub(r"[^a-z0-9\-]+", "-", s)
     s = re.sub(r"-{2,}", "-", s).strip("-")
     return s or uuid.uuid4().hex
+
 
 def _guess_ext(url: str, content_type: str | None) -> str:
     if content_type:
@@ -74,7 +78,10 @@ def _guess_ext(url: str, content_type: str | None) -> str:
     if url_ext in SAFE_EXTS:
         return url_ext
     if content_type:
-        ext = mimetypes.guess_extension(content_type.split(";")[0].strip().lower()) or ".jpg"
+        ext = (
+            mimetypes.guess_extension(content_type.split(";")[0].strip().lower())
+            or ".jpg"
+        )
         if ext == ".jpe":
             ext = ".jpg"
         if ext not in SAFE_EXTS:
@@ -82,9 +89,12 @@ def _guess_ext(url: str, content_type: str | None) -> str:
         return ext
     return ".jpg"
 
-def cache_remote_image_to_storage(url, storage=None, subdir="recipe_images", filename_slug=None):
+
+def cache_remote_image_to_storage(
+    url, storage=None, subdir="recipe_images", filename_slug=None
+):
     """Download a remote image, save to S3/local storage, and return its URL."""
-    
+
     storage = storage or default_storage
 
     if not url:

@@ -2,6 +2,7 @@
 
 from django.db import migrations
 
+
 def fill_units(apps, schema_editor):
     Ingredient = apps.get_model("core", "Ingredient")
     # Fill NULL or empty with 'pcs'
@@ -12,7 +13,7 @@ def fill_units(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0005_alter_ingredient_unit'),
+        ("core", "0005_alter_ingredient_unit"),
     ]
 
     operations = [
