@@ -22,7 +22,7 @@ class _MockResponse:
 
 class DashboardAuthTests(TestCase):
     def test_dashboard_requires_login(self):
-        url = reverse("dashboard")
+        url = reverse("core:dashboard")
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/accounts/login/", resp["Location"])
@@ -78,7 +78,7 @@ class SpoonacularWebRecipesTests(TestCase):
 
         mock_get.side_effect = side_effect
 
-        url = reverse("web_recipes")
+        url = reverse("core:web_recipes")
         r = self.client.post(url, data={"kind": "food"})
         self.assertEqual(r.status_code, 200)
         # HTML escapes & -> &amp; in templates
@@ -125,7 +125,7 @@ class AIRecipesTests(TestCase):
         mock_post.return_value = _MockResponse(ai_payload, 200)
         mock_get.return_value = _MockResponse({"results": [{"image": "https://img.test/fallback.jpg"}]}, 200)
 
-        url = reverse("ai_recipes")
+        url = reverse("core:ai_recipes")
         r = self.client.post(url, data={"kind": "food"})
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "AI Recipe Ideas")
@@ -147,7 +147,7 @@ class FavoritesDBDetailTests(TestCase):
             ingredients_json=["bell pepper", "chicken"],
             steps_json=["Prep", "Bake"],
         )
-        url = reverse("favorite_detail", args=[fav.pk])
+        url = reverse("core:favorite_detail", args=[fav.pk])
         r = self.client.get(url)
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Saved Pepper Chicken")

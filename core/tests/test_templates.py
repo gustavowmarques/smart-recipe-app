@@ -22,7 +22,7 @@ class TemplateSmokeTests(TestCase):
             ingredients_json=[{"original": "12 lasagna sheets"}],
             steps_json=["Layer", "Bake"],
         )
-        resp = self.client.get(reverse("favorites"))
+        resp = self.client.get(reverse("core:favorites"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Your Favorites")
         self.assertContains(resp, "Web Lasagna")
